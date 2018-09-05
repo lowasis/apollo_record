@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#define VIDEO_WIDTH             (720)
+#define VIDEO_HEIGHT            (480)
+
 #define AUDIO_SAMPLERATE        (48000)
 #define AUDIO_CHANNELS          (2)
 

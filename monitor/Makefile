@@ -4,7 +4,7 @@ CFLAGS = -MMD
 LDFLAGS =
 INCS =
 LIBS = -lebur128 -lasound
-OBJS = main.o audio.o analyzer.o
+OBJS = main.o video.o audio.o analyzer.o
 TARGET = apollo_monitor
 
 .PHONY : all clean

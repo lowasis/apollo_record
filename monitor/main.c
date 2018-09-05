@@ -3,6 +3,7 @@
 #include <sys/time.h>
 #include <stdint.h>
 #include "config.h"
+#include "video.h"
 #include "audio.h"
 #include "analyzer.h"
 
@@ -17,22 +18,25 @@ static void print_usage(char *name)
     printf("Usage: %s [options]\n"
            "Options:\n"
            "-h | --help           Print this message\n"
+           "-v | --video name     Input video device name (ex : /dev/video0)\n"
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
            "", name);
 }
 
-static int get_option(int argc, char **argv, char **audio_device_name)
+static int get_option(int argc, char **argv, char **video_device_name,
+                      char **audio_device_name)
 {
-    if (!argv || !audio_device_name)
+    if (!argv || !video_device_name || !audio_device_name)
     {
         return -1;
     }
 
     while (1)
     {
-        const char short_options[] = "ha:";
+        const char short_options[] = "hv:a:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
+            {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
             {0, 0, 0, 0}
         };
@@ -52,6 +56,10 @@ static int get_option(int argc, char **argv, char **audio_device_name)
             case 'h':
                 return -1;
 
+            case 'v':
+                *video_device_name = optarg;
+                break;
+
             case 'a':
                 *audio_device_name = optarg;
                 break;
@@ -61,7 +69,7 @@ static int get_option(int argc, char **argv, char **audio_device_name)
         }
     }
 
-    if (!*audio_device_name)
+    if (!*video_device_name || !*audio_device_name)
     {
         return -1;
     }
@@ -81,8 +89,9 @@ int main(int argc, char **argv)
 {
     int ret;
 
+    char *video_device_name = NULL;
     char *audio_device_name = NULL;
-    ret = get_option(argc, argv, &audio_device_name);
+    ret = get_option(argc, argv, &video_device_name, &audio_device_name);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -90,11 +99,23 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    AnalyzerContext analyzer_context;
-    ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS, &analyzer_context);
+    VideoContext video_context;
+    ret = video_init(video_device_name, VIDEO_WIDTH, VIDEO_HEIGHT,
+                     &video_context);
+     if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize video");
+
+        return -1;
+    }
+
+    char *video_frame;
+    ret = video_alloc_frame(&video_context, &video_frame);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize analyzer");
+        fprintf(stderr, "Could not allocate video frame");
+
+        video_uninit(&video_context);
 
         return -1;
     }
@@ -106,7 +127,9 @@ int main(int argc, char **argv)
     {
         fprintf(stderr, "Could not initialize audio");
 
-        analyzer_uninit(&analyzer_context);
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
 
         return -1;
     }
@@ -120,7 +143,44 @@ int main(int argc, char **argv)
 
         audio_uninit(&audio_context);
 
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
+    AnalyzerContext analyzer_context;
+    ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS, &analyzer_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize analyzer");
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
+    ret = video_start_capture(&video_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not start video capture");
+
         analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
 
         return -1;
     }
@@ -130,6 +190,20 @@ int main(int argc, char **argv)
 
     while (1)
     {
+        int received_video_frame_size;
+        ret = video_receive_frame(&video_context, video_frame,
+                                  &received_video_frame_size);
+        if (ret == 0)
+        {
+            uint64_t current_usec;
+            current_usec = get_usec();
+
+            float time;
+            time = (float)(current_usec - start_usec) / 1000000;
+
+            printf("[%.1f] Video frame received\n", time);
+        }
+
         int received_audio_frame_count;
         ret = audio_receive_frame(&audio_context, audio_frame,
                                   audio_frame_count,
@@ -170,11 +244,17 @@ int main(int argc, char **argv)
                time, momentary, shortterm, integrated);
     }
 
+    video_stop_capture(&video_context);
+
+    analyzer_uninit(&analyzer_context);
+
     audio_free_frame(audio_frame);
 
     audio_uninit(&audio_context);
 
-    analyzer_uninit(&analyzer_context);
+    video_free_frame(video_frame);
+
+    video_uninit(&video_context);
 
     return 0;
 }
