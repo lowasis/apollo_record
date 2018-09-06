@@ -6,6 +6,7 @@
 #include "video.h"
 #include "audio.h"
 #include "analyzer.h"
+#include "logger.h"
 
 
 static void print_usage(char *name)
@@ -20,24 +21,26 @@ static void print_usage(char *name)
            "-h | --help           Print this message\n"
            "-v | --video name     Input video device name (ex : /dev/video0)\n"
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
+           "-l | --log name       Output loudness log name\n"
            "", name);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
-                      char **audio_device_name)
+                      char **audio_device_name, char **loudness_log_name)
 {
-    if (!argv || !video_device_name || !audio_device_name)
+    if (!argv || !video_device_name || !audio_device_name || !loudness_log_name)
     {
         return -1;
     }
 
     while (1)
     {
-        const char short_options[] = "hv:a:";
+        const char short_options[] = "hv:a:l:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
+            {"log", required_argument, NULL, 'l'},
             {0, 0, 0, 0}
         };
         int index;
@@ -64,12 +67,16 @@ static int get_option(int argc, char **argv, char **video_device_name,
                 *audio_device_name = optarg;
                 break;
 
+            case 'l':
+                *loudness_log_name = optarg;
+                break;
+
             default:
                 return -1;
         }
     }
 
-    if (!*video_device_name || !*audio_device_name)
+    if (!*video_device_name || !*audio_device_name || !*loudness_log_name)
     {
         return -1;
     }
@@ -85,13 +92,55 @@ static uint64_t get_usec(void)
     return (uint64_t)time.tv_sec * 1000000 + time.tv_usec;
 }
 
+static int write_loudness_log(LoggerContext *context, uint64_t playtime_msec,
+                              double momentary, double integrated)
+{
+    int ret;
+
+    struct timeval unix_time;
+    ret = gettimeofday(&unix_time, NULL);
+    if (ret == -1)
+    {
+        fprintf(stderr, "Could not get unix time");
+
+        return -1;
+    }
+
+    struct tm *local_time;
+    local_time = localtime(&unix_time.tv_sec);
+
+    int hour, min, sec, msec;
+    hour = (playtime_msec / 3600000);
+    min = (playtime_msec % 3600000) / 60000;
+    sec = (playtime_msec % 60000) / 1000;
+    msec = playtime_msec % 1000;
+    ret = logger_printf(context, LOGGER_LEVEL_DEFAULT,
+                        "%04d-%02d-%02d %02d:%02d:%02d.%03ld,   "
+                        "%02d:%02d:%02d.%03d,   %2.1f,   %2.1f\n",
+                        local_time->tm_year + 1900, local_time->tm_mon + 1,
+                        local_time->tm_mday, local_time->tm_hour,
+                        local_time->tm_min, local_time->tm_sec,
+                        unix_time.tv_usec / 1000,
+                        hour, min, sec, msec, momentary, integrated);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not write loudness log");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int ret;
 
     char *video_device_name = NULL;
     char *audio_device_name = NULL;
-    ret = get_option(argc, argv, &video_device_name, &audio_device_name);
+    char *loudness_log_name = NULL;
+    ret = get_option(argc, argv, &video_device_name, &audio_device_name,
+                     &loudness_log_name);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -167,10 +216,31 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    LoggerContext logger_context;
+    ret = logger_init(loudness_log_name, &logger_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize logger");
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
         fprintf(stderr, "Could not start video capture");
+
+        logger_uninit(&logger_context);
 
         analyzer_uninit(&analyzer_context);
 
@@ -187,6 +257,9 @@ int main(int argc, char **argv)
 
     uint64_t start_usec;
     start_usec = get_usec();
+
+    uint64_t loudness_log_usec;
+    loudness_log_usec = 0;
 
     while (1)
     {
@@ -237,14 +310,26 @@ int main(int argc, char **argv)
         uint64_t current_usec;
         current_usec = get_usec();
 
-        float time;
-        time = (float)(current_usec - start_usec) / 1000000;
+        uint64_t diff_usec;
+        diff_usec = current_usec - loudness_log_usec;
+        if (LOUDNESS_LOG_PERIOD_MSEC <= (diff_usec / 1000))
+        {
+            diff_usec = current_usec - start_usec;
+            ret = write_loudness_log(&logger_context, diff_usec / 1000,
+                                     momentary, integrated);
+            if (ret == 0)
+            {
+                printf("[%.1f] Loudness log written\n",
+                       (float)diff_usec / 1000000);
+            }
 
-        printf("[%.1f] Momentary %2.1f, Shortterm %2.1f, Integrated %2.1f\n",
-               time, momentary, shortterm, integrated);
+            loudness_log_usec = current_usec;
+        }
     }
 
     video_stop_capture(&video_context);
+
+    logger_uninit(&logger_context);
 
     analyzer_uninit(&analyzer_context);
 

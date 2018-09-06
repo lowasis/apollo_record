@@ -5,11 +5,13 @@
 extern "C" {
 #endif
 
-#define VIDEO_WIDTH             (720)
-#define VIDEO_HEIGHT            (480)
+#define VIDEO_WIDTH                 (720)
+#define VIDEO_HEIGHT                (480)
 
-#define AUDIO_SAMPLERATE        (48000)
-#define AUDIO_CHANNELS          (2)
+#define AUDIO_SAMPLERATE            (48000)
+#define AUDIO_CHANNELS              (2)
+
+#define LOUDNESS_LOG_PERIOD_MSEC    (100)
 
 #ifdef __cplusplus
 }
