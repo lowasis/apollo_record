@@ -24,9 +24,11 @@ typedef enum {
 typedef struct LoggerContext {
     FILE *fp;
     int level;
+    int use_timestamp;
 } LoggerContext;
 
-int logger_init(char *name, LoggerContext *context);
+int logger_init(char *name, LoggerLevel level, int use_timestamp,
+                LoggerContext *context);
 void logger_uninit(LoggerContext *context);
 int logger_set_level(LoggerContext *context, LoggerLevel level);
 int logger_printf(LoggerContext *context, LoggerLevel level, char *format, ...);
