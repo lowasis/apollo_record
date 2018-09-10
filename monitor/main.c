@@ -7,6 +7,7 @@
 #include "audio.h"
 #include "analyzer.h"
 #include "logger.h"
+#include "recorder.h"
 
 
 static void print_usage(char *name)
@@ -22,25 +23,29 @@ static void print_usage(char *name)
            "-v | --video name     Input video device name (ex : /dev/video0)\n"
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
            "-l | --log name       Output loudness log name\n"
+           "-r | --record name    Output AV record name\n"
            "", name);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
-                      char **audio_device_name, char **loudness_log_name)
+                      char **audio_device_name, char **loudness_log_name,
+                      char **av_record_name)
 {
-    if (!argv || !video_device_name || !audio_device_name || !loudness_log_name)
+    if (!argv || !video_device_name || !audio_device_name ||
+        !loudness_log_name || !av_record_name)
     {
         return -1;
     }
 
     while (1)
     {
-        const char short_options[] = "hv:a:l:";
+        const char short_options[] = "hv:a:l:r:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
             {"log", required_argument, NULL, 'l'},
+            {"record", required_argument, NULL, 'r'},
             {0, 0, 0, 0}
         };
         int index;
@@ -71,12 +76,17 @@ static int get_option(int argc, char **argv, char **video_device_name,
                 *loudness_log_name = optarg;
                 break;
 
+            case 'r':
+                *av_record_name = optarg;
+                break;
+
             default:
                 return -1;
         }
     }
 
-    if (!*video_device_name || !*audio_device_name || !*loudness_log_name)
+    if (!*video_device_name || !*audio_device_name || !*loudness_log_name ||
+        !*av_record_name)
     {
         return -1;
     }
@@ -122,8 +132,9 @@ int main(int argc, char **argv)
     char *video_device_name = NULL;
     char *audio_device_name = NULL;
     char *loudness_log_name = NULL;
+    char *av_record_name = NULL;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
-                     &loudness_log_name);
+                     &loudness_log_name, &av_record_name);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -219,10 +230,40 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    RecorderContext recorder_context;
+    ret = recorder_init(av_record_name, VIDEO_WIDTH, VIDEO_HEIGHT,
+                        AV_PIX_FMT_YUYV422, AV_RECORD_VIDEO_WIDTH,
+                        AV_RECORD_VIDEO_HEIGHT, AV_RECORD_VIDEO_FRAMERATE,
+                        AV_RECORD_VIDEO_BITRATE, AV_RECORD_VIDEO_CODEC,
+                        AUDIO_SAMPLERATE, AUDIO_CHANNELS, AV_SAMPLE_FMT_S16,
+                        AV_RECORD_AUDIO_SAMPLERATE, AV_RECORD_AUDIO_CHANNELS,
+                        AV_RECORD_AUDIO_BITRATE, AV_RECORD_AUDIO_CODEC,
+                        &recorder_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize recorder");
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
         fprintf(stderr, "Could not start video capture");
+
+        recorder_uninit(&recorder_context);
 
         logger_uninit(&logger_context);
 
@@ -258,7 +299,16 @@ int main(int argc, char **argv)
             float time;
             time = (float)(current_usec - start_usec) / 1000000;
 
-            printf("[%.1f] Video frame received\n", time);
+            ret = recorder_write_video_frame(&recorder_context, video_frame,
+                                             received_video_frame_size);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not write recorder video frame");
+            }
+            else
+            {
+                printf("[%.1f] Video frame recorded\n", time);
+            }
         }
 
         int received_audio_frame_count;
@@ -309,9 +359,27 @@ int main(int argc, char **argv)
 
             loudness_log_usec = current_usec;
         }
+
+        current_usec = get_usec();
+
+        float time;
+        time = (float)(current_usec - start_usec) / 1000000;
+
+        ret = recorder_write_audio_frame(&recorder_context, audio_frame,
+                                         received_audio_frame_count);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not write recorder audio frame");
+        }
+        else
+        {
+            printf("[%.1f] Audio frame recorded\n", time);
+        }
     }
 
     video_stop_capture(&video_context);
+
+    recorder_uninit(&recorder_context);
 
     logger_uninit(&logger_context);
 
