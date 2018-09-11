@@ -331,16 +331,6 @@ int main(int argc, char **argv)
             continue;
         }
 
-        double momentary, shortterm, integrated;
-        ret = analyzer_get_loudness(&analyzer_context, &momentary, &shortterm,
-                                    &integrated);
-        if (ret != 0)
-        {
-            fprintf(stderr, "Could not get loudness");
-
-            continue;
-        }
-
         uint64_t current_usec;
         current_usec = get_usec();
 
@@ -348,6 +338,16 @@ int main(int argc, char **argv)
         diff_usec = current_usec - loudness_log_usec;
         if (LOUDNESS_LOG_PERIOD_MSEC <= (diff_usec / 1000))
         {
+            double momentary, shortterm, integrated;
+            ret = analyzer_get_loudness(&analyzer_context, &momentary, &shortterm,
+                                        &integrated);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not get loudness");
+
+                continue;
+            }
+
             diff_usec = current_usec - start_usec;
             ret = write_loudness_log(&logger_context, diff_usec / 1000,
                                      momentary, integrated);
