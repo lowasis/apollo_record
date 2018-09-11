@@ -668,8 +668,8 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
                              context->video_stream->time_base);
         context->video_packet->stream_index = context->video_stream->index;
 
-        printf("encoded video frame %3"PRId64" (size=%5d)\n",
-               context->video_packet->pts, context->video_packet->size);
+        /*printf("encoded video frame %3"PRId64" (size=%5d)\n",
+               context->video_packet->pts, context->video_packet->size);*/
 
         int ret2;
         ret2 = av_interleaved_write_frame(context->format_context,
@@ -762,8 +762,8 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
                                  context->audio_stream->time_base);
             context->audio_packet->stream_index = context->audio_stream->index;
 
-            printf("encoded audio frame %3"PRId64" (size=%5d)\n",
-                   context->audio_packet->pts, context->audio_packet->size);
+            /*printf("encoded audio frame %3"PRId64" (size=%5d)\n",
+                   context->audio_packet->pts, context->audio_packet->size);*/
 
             int ret2;
             ret2 = av_interleaved_write_frame(context->format_context,
