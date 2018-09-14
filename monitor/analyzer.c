@@ -5,6 +5,8 @@
 
 int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
 {
+    int ret;
+
     if (!context)
     {
         return -1;
@@ -33,6 +35,20 @@ int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
     {
         fprintf(stderr, "Could not initialize shortterm loudness\n");
     
+        ebur128_destroy(&context->shortterm);
+
+        ebur128_destroy(&context->momentary);
+
+        return -1;
+    }
+
+    ret = ebur128_set_max_history(context->integrated, 2 * 60 * 60 * 1000);
+    if (ret != EBUR128_SUCCESS)
+    {
+        fprintf(stderr, "Could not set integrated loudness max history\n");
+
+        ebur128_destroy(&context->integrated);
+
         ebur128_destroy(&context->shortterm);
 
         ebur128_destroy(&context->momentary);
