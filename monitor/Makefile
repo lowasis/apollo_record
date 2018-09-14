@@ -4,7 +4,7 @@ CFLAGS = -MMD
 LDFLAGS =
 INCS =
 LIBS = -lavformat -lavcodec -lavutil -lswscale -lswresample -lebur128 -lasound
-OBJS = main.o video.o audio.o analyzer.o logger.o recorder.o
+OBJS = main.o video.o audio.o analyzer.o logger.o recorder.o streamer.o
 TARGET = apollo_monitor
 
 .PHONY : all clean

@@ -2,12 +2,14 @@
 #include <getopt.h>
 #include <sys/time.h>
 #include <stdint.h>
+#include <fcntl.h>
 #include "config.h"
 #include "video.h"
 #include "audio.h"
 #include "analyzer.h"
 #include "logger.h"
 #include "recorder.h"
+#include "streamer.h"
 
 
 static void print_usage(char *name)
@@ -24,28 +26,41 @@ static void print_usage(char *name)
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
            "-l | --log name       Output loudness log name\n"
            "-r | --record name    Output AV record name\n"
+           "-i | --ip name        Output AV stream ip name\n"
+           "-p | --port number    Output AV stream port number\n"
            "", name);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
                       char **audio_device_name, char **loudness_log_name,
-                      char **av_record_name)
+                      char **av_record_name, char **av_stream_ip_name,
+                      int *av_stream_port_number)
 {
     if (!argv || !video_device_name || !audio_device_name ||
-        !loudness_log_name || !av_record_name)
+        !loudness_log_name || !av_record_name || !av_stream_ip_name ||
+        !av_stream_port_number)
     {
         return -1;
     }
 
+    *video_device_name = NULL;
+    *audio_device_name = NULL;
+    *loudness_log_name = NULL;
+    *av_record_name = NULL;
+    *av_stream_ip_name = NULL;
+    *av_stream_port_number = -1;
+
     while (1)
     {
-        const char short_options[] = "hv:a:l:r:";
+        const char short_options[] = "hv:a:l:r:i:p:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
             {"log", required_argument, NULL, 'l'},
             {"record", required_argument, NULL, 'r'},
+            {"ip", required_argument, NULL, 'i'},
+            {"port", required_argument, NULL, 'p'},
             {0, 0, 0, 0}
         };
         int index;
@@ -80,13 +95,21 @@ static int get_option(int argc, char **argv, char **video_device_name,
                 *av_record_name = optarg;
                 break;
 
+            case 'i':
+                *av_stream_ip_name = optarg;
+                break;
+
+            case 'p':
+                *av_stream_port_number = strtol(optarg, NULL, 10);
+                break;
+
             default:
                 return -1;
         }
     }
 
     if (!*video_device_name || !*audio_device_name || !*loudness_log_name ||
-        !*av_record_name)
+        !*av_record_name || !*av_stream_ip_name || *av_stream_port_number == -1)
     {
         return -1;
     }
@@ -125,6 +148,42 @@ static int write_loudness_log(LoggerContext *context, uint64_t playtime_msec,
     return 0;
 }
 
+static int send_av_stream(StreamerContext *context, int fd, int size)
+{
+    int ret;
+
+    char *buf;
+    buf = (char *)malloc(size);
+    if (!buf)
+    {
+        fprintf(stderr, "Could not allocate av stream buffer");
+
+        return -1;
+    }
+
+    ret = read(fd, buf, size);
+    if (ret == 0)
+    {
+        free(buf);
+
+        return -1;
+    }
+
+    ret = streamer_send(context, buf, ret);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send av stream");
+
+        free(buf);
+        
+        return -1;
+    }
+
+    free(buf);
+
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int ret;
@@ -133,8 +192,11 @@ int main(int argc, char **argv)
     char *audio_device_name = NULL;
     char *loudness_log_name = NULL;
     char *av_record_name = NULL;
+    char *av_stream_ip_name = NULL;
+    int av_stream_port_number = 0;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
-                     &loudness_log_name, &av_record_name);
+                     &loudness_log_name, &av_record_name, &av_stream_ip_name,
+                     &av_stream_port_number);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -258,10 +320,63 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    StreamerContext streamer_context;
+    ret = streamer_init(av_stream_ip_name, av_stream_port_number,
+                        AV_STREAM_PACKET_SIZE, &streamer_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize streamer");
+
+        recorder_uninit(&recorder_context);
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
+    int av_record_fd;
+    av_record_fd = open(av_record_name, O_RDONLY | O_NONBLOCK);
+    if (av_record_fd < 0)
+    {
+        fprintf(stderr, "Could not open av record");
+
+        streamer_uninit(&streamer_context);
+
+        recorder_uninit(&recorder_context);
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
         fprintf(stderr, "Could not start video capture");
+
+        close(av_record_fd);
+
+        streamer_uninit(&streamer_context);
 
         recorder_uninit(&recorder_context);
 
@@ -375,9 +490,24 @@ int main(int argc, char **argv)
         {
             printf("[%.1f] Audio frame recorded\n", time);
         }
+
+        current_usec = get_usec();
+
+        time = (float)(current_usec - start_usec) / 1000000;
+
+        ret = send_av_stream(&streamer_context, av_record_fd,
+                             AV_STREAM_PACKET_SIZE);
+        if (ret == 0)
+        {
+            printf("[%.1f] AV stream sent\n", time);
+        }
     }
 
     video_stop_capture(&video_context);
+
+    close(av_record_fd);
+
+    streamer_uninit(&streamer_context);
 
     recorder_uninit(&recorder_context);
 

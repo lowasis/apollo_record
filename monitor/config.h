@@ -23,6 +23,8 @@ extern "C" {
 #define AV_RECORD_AUDIO_BITRATE     (192000)
 #define AV_RECORD_AUDIO_CODEC       (AV_CODEC_ID_MP2)
 
+#define AV_STREAM_PACKET_SIZE       (1316)
+
 #ifdef __cplusplus
 }
 #endif
