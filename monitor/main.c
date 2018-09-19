@@ -11,6 +11,7 @@
 #include "recorder.h"
 #include "streamer.h"
 #include "fifo.h"
+#include "ipc.h"
 
 
 static void print_usage(char *name)
@@ -30,17 +31,19 @@ static void print_usage(char *name)
            "-i | --ip name        Output AV stream ip name\n"
            "-p | --port number    Output AV stream port number\n"
            "-f | --fifo name      Internal AV FIFO name\n"
+           "-s | --socket name    IPC socket name\n"
            "", name);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
                       char **audio_device_name, char **loudness_log_name,
                       char **av_record_name, char **av_stream_ip_name,
-                      int *av_stream_port_number, char **av_fifo_name)
+                      int *av_stream_port_number, char **av_fifo_name,
+                      char **ipc_socket_name)
 {
     if (!argv || !video_device_name || !audio_device_name ||
         !loudness_log_name || !av_record_name || !av_stream_ip_name ||
-        !av_stream_port_number || !av_fifo_name)
+        !av_stream_port_number || !av_fifo_name || !ipc_socket_name)
     {
         return -1;
     }
@@ -52,10 +55,11 @@ static int get_option(int argc, char **argv, char **video_device_name,
     *av_stream_ip_name = NULL;
     *av_stream_port_number = -1;
     *av_fifo_name = NULL;
+    *ipc_socket_name = NULL;
 
     while (1)
     {
-        const char short_options[] = "hv:a:l:r:i:p:f:";
+        const char short_options[] = "hv:a:l:r:i:p:f:s:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
@@ -65,6 +69,7 @@ static int get_option(int argc, char **argv, char **video_device_name,
             {"ip", required_argument, NULL, 'i'},
             {"port", required_argument, NULL, 'p'},
             {"fifo", required_argument, NULL, 'f'},
+            {"socket", required_argument, NULL, 's'},
             {0, 0, 0, 0}
         };
         int index;
@@ -111,6 +116,10 @@ static int get_option(int argc, char **argv, char **video_device_name,
                 *av_fifo_name = optarg;
                 break;
 
+            case 's':
+                *ipc_socket_name = optarg;
+                break;
+
             default:
                 return -1;
         }
@@ -118,7 +127,7 @@ static int get_option(int argc, char **argv, char **video_device_name,
 
     if (!*video_device_name || !*audio_device_name || !*loudness_log_name ||
         !*av_record_name || !*av_stream_ip_name ||
-        *av_stream_port_number == -1 || !*av_fifo_name)
+        *av_stream_port_number == -1 || !*av_fifo_name || !*ipc_socket_name)
     {
         return -1;
     }
@@ -168,9 +177,10 @@ int main(int argc, char **argv)
     char *av_stream_ip_name = NULL;
     int av_stream_port_number = 0;
     char *av_fifo_name = NULL;
+    char *ipc_socket_name = NULL;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
                      &loudness_log_name, &av_record_name, &av_stream_ip_name,
-                     &av_stream_port_number, &av_fifo_name);
+                     &av_stream_port_number, &av_fifo_name, &ipc_socket_name);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -399,10 +409,43 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    IpcContext ipc_context;
+    ret = ipc_init(ipc_socket_name, &ipc_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize IPC");
+
+        fclose(av_record_fp);
+
+        streamer_uninit(&streamer_context);
+
+        recorder_uninit(&recorder_context);
+
+        fifo_free_buffer(fifo_buffer);
+
+        fifo_uninit(&fifo_context);
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
         fprintf(stderr, "Could not start video capture");
+
+        ipc_uninit(&ipc_context);
 
         fclose(av_record_fp);
 
@@ -497,6 +540,19 @@ int main(int argc, char **argv)
                 continue;
             }
 
+            IpcMessage ipc_message;
+            ipc_message.command = IPC_COMMAND_LOUDNESS_DATA;
+            snprintf(ipc_message.arg, sizeof(ipc_message.arg),
+                     "%2.1f %2.1f %2.1f", momentary, shortterm, integrated);
+            ret = ipc_send_message(&ipc_context, &ipc_message);
+            if (ret == 0)
+            {
+                float time;
+                time = (float)(current_usec - start_usec) / 1000000;
+
+                printf("[%.1f] IPC message sent\n", time);
+            }
+
             diff_usec = current_usec - start_usec;
             ret = write_loudness_log(&logger_context, diff_usec / 1000,
                                      momentary, integrated);
@@ -559,6 +615,8 @@ int main(int argc, char **argv)
     }
 
     video_stop_capture(&video_context);
+
+    ipc_uninit(&ipc_context);
 
     fclose(av_record_fp);
 

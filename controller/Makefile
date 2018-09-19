@@ -3,10 +3,9 @@ CC = $(CROSS_COMPILE)gcc
 CFLAGS = -MMD
 LDFLAGS =
 INCS =
-LIBS = -lavformat -lavcodec -lavutil -lswscale -lswresample -lebur128 -lasound
-OBJS = main.o video.o audio.o analyzer.o logger.o recorder.o streamer.o fifo.o \
-       ipc.o
-TARGET = apollo_monitor
+LIBS =
+OBJS = main.o ipc.o
+TARGET = apollo_controller
 
 .PHONY : all clean
 
