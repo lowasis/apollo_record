@@ -534,7 +534,7 @@ int main(int argc, char **argv)
             if (loudness_log_flag)
             {
                 uint64_t time;
-                time = get_usec() - loudness_log_start_usec;
+                time = (get_usec() - loudness_log_start_usec) / 1000;
 
                 int hour, min, sec, msec;
                 hour = (time / 3600000);
