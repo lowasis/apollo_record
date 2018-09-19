@@ -25,6 +25,8 @@ extern "C" {
 
 #define AV_STREAM_PACKET_SIZE       (1316)
 
+#define AV_FIFO_BUFFER_SIZE         (8192)
+
 #ifdef __cplusplus
 }
 #endif

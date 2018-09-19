@@ -10,6 +10,7 @@
 #include "logger.h"
 #include "recorder.h"
 #include "streamer.h"
+#include "fifo.h"
 
 
 static void print_usage(char *name)
@@ -28,17 +29,18 @@ static void print_usage(char *name)
            "-r | --record name    Output AV record name\n"
            "-i | --ip name        Output AV stream ip name\n"
            "-p | --port number    Output AV stream port number\n"
+           "-f | --fifo name      Internal AV FIFO name\n"
            "", name);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
                       char **audio_device_name, char **loudness_log_name,
                       char **av_record_name, char **av_stream_ip_name,
-                      int *av_stream_port_number)
+                      int *av_stream_port_number, char **av_fifo_name)
 {
     if (!argv || !video_device_name || !audio_device_name ||
         !loudness_log_name || !av_record_name || !av_stream_ip_name ||
-        !av_stream_port_number)
+        !av_stream_port_number || !av_fifo_name)
     {
         return -1;
     }
@@ -49,10 +51,11 @@ static int get_option(int argc, char **argv, char **video_device_name,
     *av_record_name = NULL;
     *av_stream_ip_name = NULL;
     *av_stream_port_number = -1;
+    *av_fifo_name = NULL;
 
     while (1)
     {
-        const char short_options[] = "hv:a:l:r:i:p:";
+        const char short_options[] = "hv:a:l:r:i:p:f:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
@@ -61,6 +64,7 @@ static int get_option(int argc, char **argv, char **video_device_name,
             {"record", required_argument, NULL, 'r'},
             {"ip", required_argument, NULL, 'i'},
             {"port", required_argument, NULL, 'p'},
+            {"fifo", required_argument, NULL, 'f'},
             {0, 0, 0, 0}
         };
         int index;
@@ -103,13 +107,18 @@ static int get_option(int argc, char **argv, char **video_device_name,
                 *av_stream_port_number = strtol(optarg, NULL, 10);
                 break;
 
+            case 'f':
+                *av_fifo_name = optarg;
+                break;
+
             default:
                 return -1;
         }
     }
 
     if (!*video_device_name || !*audio_device_name || !*loudness_log_name ||
-        !*av_record_name || !*av_stream_ip_name || *av_stream_port_number == -1)
+        !*av_record_name || !*av_stream_ip_name ||
+        *av_stream_port_number == -1 || !*av_fifo_name)
     {
         return -1;
     }
@@ -148,42 +157,6 @@ static int write_loudness_log(LoggerContext *context, uint64_t playtime_msec,
     return 0;
 }
 
-static int send_av_stream(StreamerContext *context, int fd, int size)
-{
-    int ret;
-
-    char *buf;
-    buf = (char *)malloc(size);
-    if (!buf)
-    {
-        fprintf(stderr, "Could not allocate av stream buffer");
-
-        return -1;
-    }
-
-    ret = read(fd, buf, size);
-    if (ret == 0)
-    {
-        free(buf);
-
-        return -1;
-    }
-
-    ret = streamer_send(context, buf, ret);
-    if (ret != 0)
-    {
-        fprintf(stderr, "Could not send av stream");
-
-        free(buf);
-        
-        return -1;
-    }
-
-    free(buf);
-
-    return 0;
-}
-
 int main(int argc, char **argv)
 {
     int ret;
@@ -194,9 +167,10 @@ int main(int argc, char **argv)
     char *av_record_name = NULL;
     char *av_stream_ip_name = NULL;
     int av_stream_port_number = 0;
+    char *av_fifo_name = NULL;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
                      &loudness_log_name, &av_record_name, &av_stream_ip_name,
-                     &av_stream_port_number);
+                     &av_stream_port_number, &av_fifo_name);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -292,8 +266,52 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    FifoContext fifo_context;
+    ret = fifo_init(av_fifo_name, &fifo_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize FIFO");
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
+    char *fifo_buffer;
+    ret = fifo_alloc_buffer(&fifo_context, AV_FIFO_BUFFER_SIZE, &fifo_buffer);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not allocate FIFO buffer");
+
+        fifo_uninit(&fifo_context);
+
+        logger_uninit(&logger_context);
+
+        analyzer_uninit(&analyzer_context);
+
+        audio_free_frame(audio_frame);
+
+        audio_uninit(&audio_context);
+
+        video_free_frame(video_frame);
+
+        video_uninit(&video_context);
+
+        return -1;
+    }
+
     RecorderContext recorder_context;
-    ret = recorder_init(av_record_name, VIDEO_WIDTH, VIDEO_HEIGHT,
+    ret = recorder_init(av_fifo_name, VIDEO_WIDTH, VIDEO_HEIGHT,
                         AV_PIX_FMT_YUYV422, AV_RECORD_VIDEO_WIDTH,
                         AV_RECORD_VIDEO_HEIGHT, AV_RECORD_VIDEO_FRAMERATE,
                         AV_RECORD_VIDEO_BITRATE, AV_RECORD_VIDEO_CODEC,
@@ -304,6 +322,10 @@ int main(int argc, char **argv)
     if (ret != 0)
     {
         fprintf(stderr, "Could not initialize recorder");
+
+        fifo_free_buffer(fifo_buffer);
+
+        fifo_uninit(&fifo_context);
 
         logger_uninit(&logger_context);
 
@@ -329,6 +351,10 @@ int main(int argc, char **argv)
 
         recorder_uninit(&recorder_context);
 
+        fifo_free_buffer(fifo_buffer);
+
+        fifo_uninit(&fifo_context);
+
         logger_uninit(&logger_context);
 
         analyzer_uninit(&analyzer_context);
@@ -344,15 +370,19 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    int av_record_fd;
-    av_record_fd = open(av_record_name, O_RDONLY | O_NONBLOCK);
-    if (av_record_fd < 0)
+    FILE *av_record_fp;
+    av_record_fp = fopen(av_record_name, "wb");
+    if (!av_record_fp)
     {
         fprintf(stderr, "Could not open av record");
 
         streamer_uninit(&streamer_context);
 
         recorder_uninit(&recorder_context);
+
+        fifo_free_buffer(fifo_buffer);
+
+        fifo_uninit(&fifo_context);
 
         logger_uninit(&logger_context);
 
@@ -374,11 +404,15 @@ int main(int argc, char **argv)
     {
         fprintf(stderr, "Could not start video capture");
 
-        close(av_record_fd);
+        fclose(av_record_fp);
 
         streamer_uninit(&streamer_context);
 
         recorder_uninit(&recorder_context);
+
+        fifo_free_buffer(fifo_buffer);
+
+        fifo_uninit(&fifo_context);
 
         logger_uninit(&logger_context);
 
@@ -495,21 +529,46 @@ int main(int argc, char **argv)
 
         time = (float)(current_usec - start_usec) / 1000000;
 
-        ret = send_av_stream(&streamer_context, av_record_fd,
-                             AV_STREAM_PACKET_SIZE);
+        int received_fifo_buffer_size;
+        ret = fifo_read(&fifo_context, fifo_buffer, AV_FIFO_BUFFER_SIZE,
+                        &received_fifo_buffer_size);
         if (ret == 0)
         {
-            printf("[%.1f] AV stream sent\n", time);
+            ret = streamer_send(&streamer_context, fifo_buffer,
+                                received_fifo_buffer_size);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not send AV stream");
+            }
+            else
+            {
+                printf("[%.1f] AV stream sent\n", time);
+            }
+
+            ret = fwrite(fifo_buffer, 1, received_fifo_buffer_size,
+                         av_record_fp);
+            if (ret != received_fifo_buffer_size)
+            {
+                fprintf(stderr, "Could not write AV record");
+            }
+            else
+            {
+                printf("[%.1f] AV record wrote\n", time);
+            }
         }
     }
 
     video_stop_capture(&video_context);
 
-    close(av_record_fd);
+    fclose(av_record_fp);
 
     streamer_uninit(&streamer_context);
 
     recorder_uninit(&recorder_context);
+
+    fifo_free_buffer(fifo_buffer);
+
+    fifo_uninit(&fifo_context);
 
     logger_uninit(&logger_context);
 
