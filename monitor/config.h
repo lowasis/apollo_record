@@ -27,6 +27,8 @@ extern "C" {
 
 #define AV_FIFO_BUFFER_SIZE         (8192)
 
+#define FILE_NAME_LENGTH            (128)
+
 #ifdef __cplusplus
 }
 #endif
