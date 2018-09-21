@@ -361,12 +361,18 @@ int main(int argc, char **argv)
                         continue;
                     }
 
+                    printf("[%.3f] Loudness log start (%s)\n", time,
+                           loudness_log_name);
+
                     loudness_log_start_usec = get_usec();
                     loudness_log_flag = 1;
                     break;
 
                 case IPC_COMMAND_LOUDNESS_LOG_END:
                     logger_uninit(&logger_context);
+
+                    printf("[%.3f] Loudness log end (%s)\n", time,
+                           loudness_log_name);
 
                     loudness_log_flag = 0;
                     break;
@@ -387,11 +393,17 @@ int main(int argc, char **argv)
                         continue;
                     }
 
+                    printf("[%.3f] AV stream start (%s %d)\n", time,
+                           av_stream_ip_name, av_stream_port_number);
+
                     av_stream_flag = 1;
                     break;
 
                 case IPC_COMMAND_AV_STREAM_END:
                     streamer_uninit(&streamer_context);
+
+                    printf("[%.3f] AV stream end (%s %d)\n", time,
+                           av_stream_ip_name, av_stream_port_number);
 
                     av_stream_flag = 0;
                     break;
@@ -408,11 +420,17 @@ int main(int argc, char **argv)
                         continue;
                     }
 
+                    printf("[%.3f] AV record start (%s)\n", time,
+                           av_record_name);
+
                     av_record_flag = 1;
                     break;
 
                 case IPC_COMMAND_AV_RECORD_END:
                     fclose(av_record_fp);
+
+                    printf("[%.3f] AV record end (%s)\n", time,
+                           av_record_name);
 
                     av_record_flag = 0;
                     break;
@@ -429,10 +447,12 @@ int main(int argc, char **argv)
                         program_end_flag = 1;
                         continue;
                     }
+
+                    printf("[%.3f] Analyzer reset\n", time);
                     break;
 
                 case IPC_COMMAND_PROGRAM_END:
-                    fprintf(stderr, "Program end");
+                    printf("[%.3f] Program end\n", time);
 
                     program_end_flag = 1;
                     continue;
