@@ -349,6 +349,18 @@ int main(int argc, char **argv)
             switch (ipc_message.command)
             {
                 case IPC_COMMAND_LOUDNESS_LOG_START:
+                    if (loudness_log_flag)
+                    {
+                        printf("[%.3f] Already loudness log started\n", time);
+                        break;
+                    }
+
+                    if (strlen(ipc_message.arg) == 0)
+                    {
+                        printf("[%.3f] Null loudness log name\n", time);
+                        break;
+                    }
+
                     strncpy(loudness_log_name, ipc_message.arg,
                             sizeof(loudness_log_name));
                     ret = logger_init(loudness_log_name, LOGGER_LEVEL_DEFAULT,
@@ -369,6 +381,12 @@ int main(int argc, char **argv)
                     break;
 
                 case IPC_COMMAND_LOUDNESS_LOG_END:
+                    if (!loudness_log_flag)
+                    {
+                        printf("[%.3f] Already loudness log ended\n", time);
+                        break;
+                    }
+
                     logger_uninit(&logger_context);
 
                     printf("[%.3f] Loudness log end (%s)\n", time,
@@ -378,9 +396,27 @@ int main(int argc, char **argv)
                     break;
 
                 case IPC_COMMAND_AV_STREAM_START:
-                    strncpy(av_stream_ip_name, strtok(ipc_message.arg, " "),
-                            sizeof(av_stream_ip_name));
-                    av_stream_port_number = strtol(strtok(NULL, " "), NULL, 10);
+                    if (av_stream_flag)
+                    {
+                        printf("[%.3f] Already AV stream started\n", time);
+                        break;
+                    }
+
+                    char *name = strtok(ipc_message.arg, " ");
+                    if (!name || strlen(name) == 0)
+                    {
+                        printf("[%.3f] Null AV stream ip name\n", time);
+                        break;
+                    }
+                    char *number = strtok(NULL, " ");
+                    if (!number || strlen(number) == 0)
+                    {
+                        printf("[%.3f] Null AV stream port number\n", time);
+                        break;
+                    }
+
+                    strncpy(av_stream_ip_name, name, sizeof(av_stream_ip_name));
+                    av_stream_port_number = strtol(number, NULL, 10);
                     ret = streamer_init(av_stream_ip_name,
                                         av_stream_port_number,
                                         AV_STREAM_PACKET_SIZE,
@@ -400,6 +436,12 @@ int main(int argc, char **argv)
                     break;
 
                 case IPC_COMMAND_AV_STREAM_END:
+                    if (!av_stream_flag)
+                    {
+                        printf("[%.3f] Already AV stream ended\n", time);
+                        break;
+                    }
+
                     streamer_uninit(&streamer_context);
 
                     printf("[%.3f] AV stream end (%s %d)\n", time,
@@ -409,6 +451,18 @@ int main(int argc, char **argv)
                     break;
 
                 case IPC_COMMAND_AV_RECORD_START:
+                    if (av_record_flag)
+                    {
+                        printf("[%.3f] Already AV record started\n", time);
+                        break;
+                    }
+
+                    if (strlen(ipc_message.arg) == 0)
+                    {
+                        printf("[%.3f] Null AV record name\n", time);
+                        break;
+                    }
+
                     strncpy(av_record_name, ipc_message.arg,
                             sizeof(av_record_name));
                     av_record_fp = fopen(av_record_name, "wb");
@@ -427,6 +481,12 @@ int main(int argc, char **argv)
                     break;
 
                 case IPC_COMMAND_AV_RECORD_END:
+                    if (!av_record_flag)
+                    {
+                        printf("[%.3f] Already AV record ended\n", time);
+                        break;
+                    }
+
                     fclose(av_record_fp);
 
                     printf("[%.3f] AV record end (%s)\n", time,
