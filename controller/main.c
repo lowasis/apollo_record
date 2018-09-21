@@ -193,6 +193,9 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    char *momentary;
+    char *shortterm;
+    char *integrated;
     Loudness loudness[IPC_SOCKET_COUNT] = {0,};
 
     char line_buffer[LINE_BUFFER_SIZE] = {0,};
@@ -218,12 +221,30 @@ int main(int argc, char **argv)
                 switch (ipc_message.command)
                 {
                     case IPC_COMMAND_LOUDNESS_DATA:
-                        strncpy(loudness[i].momentary,
-                                strtok(ipc_message.arg, " "),
+                        momentary = strtok(ipc_message.arg, " ");
+                        if (!momentary || strlen(momentary) == 0)
+                        {
+                            printf("Null momentary loudness data\n");
+                            break;
+                        }
+                        shortterm = strtok(NULL, " ");
+                        if (!shortterm || strlen(shortterm) == 0)
+                        {
+                            printf("Null shortterm loudness data\n");
+                            break;
+                        }
+                        integrated = strtok(NULL, " ");
+                        if (!integrated || strlen(integrated) == 0)
+                        {
+                            printf("Null integrated loudness data\n");
+                            break;
+                        }
+
+                        strncpy(loudness[i].momentary, momentary,
                                 sizeof(loudness[i].momentary));
-                        strncpy(loudness[i].shortterm, strtok(NULL, " "),
+                        strncpy(loudness[i].shortterm, shortterm,
                                 sizeof(loudness[i].shortterm));
-                        strncpy(loudness[i].integrated, strtok(NULL, " "),
+                        strncpy(loudness[i].integrated, integrated,
                                 sizeof(loudness[i].integrated));
                         break;
 
