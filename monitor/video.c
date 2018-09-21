@@ -68,6 +68,17 @@ int video_init(char *name, int width, int height, VideoContext *context)
         return -1;
     }
 
+    v4l2_std_id std_id = V4L2_STD_NTSC;
+    ret = xioctl(context->fd, VIDIOC_S_STD, &std_id);
+    if (ret == -1)
+    {
+        fprintf(stderr, "Could not set video standard\n");
+
+        close(context->fd);
+
+        return -1;
+    }
+
     struct v4l2_format format;
     memset(&format, 0, sizeof(format));
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
