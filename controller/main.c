@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include "config.h"
 #include "ipc.h"
+#include "irremote.h"
 
 
 typedef struct Loudness {
@@ -28,13 +29,16 @@ static void print_usage(char *name)
            "Options:\n"
            "-h | --help           Print this message\n"
            "-s | --socket name    IPC socket name(s) (max %d sockets)\n"
-           "", name, IPC_SOCKET_COUNT);
+           "-l | --lircd name     lircd socket name(s) (max %d sockets)\n"
+           "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT);
 }
 
 static int get_option(int argc, char **argv, char **ipc_socket_name,
-                      int *ipc_socket_name_count)
+                      int *ipc_socket_name_count, char **lircd_socket_name,
+                      int *lircd_socket_name_count)
 {
-    if (!argv || !ipc_socket_name || !ipc_socket_name_count)
+    if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
+        !lircd_socket_name || !lircd_socket_name_count)
     {
         return -1;
     }
@@ -44,13 +48,19 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
         ipc_socket_name[i] = NULL;
     }
     *ipc_socket_name_count = 0;
+    for (int i = 0; i < LIRCD_SOCKET_COUNT; i++)
+    {
+        lircd_socket_name[i] = NULL;
+    }
+    *lircd_socket_name_count = 0;
 
     while (1)
     {
-        const char short_options[] = "hs:";
+        const char short_options[] = "hs:l:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"socket", required_argument, NULL, 's'},
+            {"lircd", required_argument, NULL, 's'},
             {0, 0, 0, 0}
         };
         int index;
@@ -76,12 +86,19 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 }
                 break;
 
+            case 'l':
+                if (*lircd_socket_name_count < LIRCD_SOCKET_COUNT)
+                {
+                    lircd_socket_name[(*lircd_socket_name_count)++] = optarg;
+                }
+                break;
+
             default:
                 return -1;
         }
     }
 
-    if (*ipc_socket_name_count == 0)
+    if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0)
     {
         return -1;
     }
@@ -130,18 +147,89 @@ static int get_line(char *buffer, int size, int *index)
     return 0;
 }
 
-static void *loudness_print(int index, void *arg)
+static void *channel_change(void *context, int index, void **arg)
 {
-    Loudness *loudness = (Loudness *)arg;
+    IrRemoteContext *irremote_context = (IrRemoteContext *)context;
+    char *channel = (char *)arg[0];
+
+    char *p;
+    strtol(channel, &p, 10);
+    if ((p - channel) != strlen(channel))
+    {
+        printf("Wrong channel number\n");
+
+        return NULL;
+    }
+
+    for (int i = 0; i < strlen(channel); i++)
+    {
+        IrRemoteKey key;
+        switch (channel[i])
+        {
+            case '0':
+                key = IRREMOTE_KEY_0;
+                break;
+
+            case '1':
+                key = IRREMOTE_KEY_1;
+                break;
+
+            case '2':
+                key = IRREMOTE_KEY_2;
+                break;
+
+            case '3':
+                key = IRREMOTE_KEY_3;
+                break;
+
+            case '4':
+                key = IRREMOTE_KEY_4;
+                break;
+
+            case '5':
+                key = IRREMOTE_KEY_5;
+                break;
+
+            case '6':
+                key = IRREMOTE_KEY_6;
+                break;
+
+            case '7':
+                key = IRREMOTE_KEY_7;
+                break;
+
+            case '8':
+                key = IRREMOTE_KEY_8;
+                break;
+
+            case '9':
+                key = IRREMOTE_KEY_9;
+                break;
+
+            default:
+                continue;
+        }
+
+        irremote_send_key(&irremote_context[index], key);
+
+        usleep(500 * 1000);
+    }
+
+    irremote_send_key(&irremote_context[index], IRREMOTE_KEY_OK);
+}
+
+static void *loudness_print(void *context, int index, void **arg)
+{
+    Loudness *loudness = (Loudness *)context;
 
     printf("Momentary %s, Shortterm %s, Integrated %s\n",
            loudness[index].momentary, loudness[index].shortterm,
            loudness[index].integrated);
 }
 
-static void *program_end(int index, void *arg)
+static void *program_end(void *context, int index, void **arg)
 {
-    int *program_end_flag = (int *)arg;
+    int *program_end_flag = (int *)context;
 
     printf("Program end\n");
 
@@ -154,7 +242,10 @@ int main(int argc, char **argv)
 
     char *ipc_socket_name[IPC_SOCKET_COUNT] = {NULL,};
     int ipc_socket_name_count = 0;
-    ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count);
+    char *lircd_socket_name[LIRCD_SOCKET_COUNT] = {NULL,};
+    int lircd_socket_name_count = 0;
+    ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
+                     lircd_socket_name, &lircd_socket_name_count);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -179,11 +270,39 @@ int main(int argc, char **argv)
         }
     }
 
+    IrRemoteContext irremote_context[LIRCD_SOCKET_COUNT];
+    for (int i = 0; i < lircd_socket_name_count; i++)
+    {
+        ret = irremote_init(lircd_socket_name[i], IRREMOTE_MODEL,
+                            &irremote_context[i]);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not initialize IR\n");
+
+            for (int j = 0; j < i; j++)
+            {
+                irremote_uninit(&irremote_context[j]);
+            }
+
+            for (int j = 0; j < ipc_socket_name_count; j++)
+            {
+                ipc_uninit(&ipc_context[j]);
+            }
+
+            return -1;
+        }
+    }
+
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     ret = fcntl(STDIN_FILENO, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
         fprintf(stderr, "Could not set stdin flag\n");
+
+        for (int i = 0; i < lircd_socket_name_count; i++)
+        {
+            irremote_uninit(&irremote_context[i]);
+        }
 
         for (int i = 0; i < ipc_socket_name_count; i++)
         {
@@ -302,8 +421,8 @@ int main(int argc, char **argv)
                             break;
                         }
 
-                        int ipc_context_index = strtol(idx, NULL, 10);
-                        if (ipc_socket_name_count <= ipc_context_index)
+                        int index = strtol(idx, NULL, 10);
+                        if (ipc_socket_name_count <= index)
                         {
                             printf("Wrong index\n");
 
@@ -330,7 +449,7 @@ int main(int argc, char **argv)
                             break;
                         }
 
-                        ret = ipc_send_message(&ipc_context[ipc_context_index],
+                        ret = ipc_send_message(&ipc_context[index],
                                                &ipc_message);
                         if (ret == 0)
                         {
@@ -338,7 +457,7 @@ int main(int argc, char **argv)
                             time = (float)(get_usec() - start_usec) / 1000000;
 
                             printf("[%.3f] %d, IPC message sent\n", time,
-                                   ipc_context_index);
+                                   index);
                         }
 
                         break;
@@ -347,13 +466,18 @@ int main(int argc, char **argv)
 
                 const struct {
                     char *command;
-                    void *(*func)(int index, void *arg);
+                    void *(*func)(void *context, int index, void **arg);
+                    void *context;
                     int need_index;
-                    void *arg;
+                    int index_count;
+                    int argc;
                 } command_table[] = {
-                    {"loudness", loudness_print, 1, (void *)loudness},
-                    {"end", program_end, 0, (void *)&program_end_flag},
-                    {NULL, NULL, 0}
+                    {"channel", channel_change, irremote_context, 1,
+                            lircd_socket_name_count, 1},
+                    {"loudness", loudness_print, loudness, 1,
+                            ipc_socket_name_count, 0},
+                    {"end", program_end, &program_end_flag, 0, 0, 0},
+                    {NULL, NULL, NULL, 0, 0, 0}
                 };
 
                 int k;
@@ -362,7 +486,7 @@ int main(int argc, char **argv)
                     if (strncmp(cmd, command_table[k].command,
                         strlen(command_table[k].command)) == 0)
                     {
-                        int ipc_context_index = 0;
+                        int index = 0;
                         if (command_table[k].need_index)
                         {
                             if (!idx)
@@ -372,8 +496,8 @@ int main(int argc, char **argv)
                                 break;
                             }
 
-                            ipc_context_index = strtol(idx, NULL, 10);
-                            if (ipc_socket_name_count <= ipc_context_index)
+                            index = strtol(idx, NULL, 10);
+                            if (command_table[k].index_count <= index)
                             {
                                 printf("Wrong index\n");
 
@@ -381,10 +505,23 @@ int main(int argc, char **argv)
                             }
                         }
 
+                        int j;
+                        for (j = 0; j < COMMAND_ARGUMENT_COUNT && arg[j]; j++)
+                        {
+                        }
+
+                        if (j != command_table[k].argc)
+                        {
+                            printf("Need %d arguments\n",
+                                   command_table[k].argc);
+
+                            break;
+                        }
+
                         if (command_table[k].func)
                         {
-                            command_table[k].func(ipc_context_index,
-                                                  command_table[k].arg);
+                            command_table[k].func(command_table[k].context,
+                                                  index, (void **)arg);
                         }
 
                         break;
@@ -403,6 +540,11 @@ int main(int argc, char **argv)
 
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+    for (int i = 0; i < lircd_socket_name_count; i++)
+    {
+        irremote_uninit(&irremote_context[i]);
+    }
 
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
