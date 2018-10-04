@@ -109,6 +109,20 @@ int main(int argc, char **argv)
 
                 printf("staus_stop sent\n");
             }
+            else if (!strcmp(line_buf, "channel_change"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><channel_change ip=\"10.10.1.20\" number=\"7777\"><card index=\"1\" channel=\"11\" /><card index=\"3\" channel=\"29\" /></channel_change>\n");
+                send(sockfd, buf, len, 0);
+
+                printf("channel_change sent\n");
+            }
+            else if (!strcmp(line_buf, "loudness_reset"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><loudness_reset ip=\"10.10.1.20\" number=\"8888\"><card index=\"1\" /><card index=\"4\" /></loudness_reset>\n");
+                send(sockfd, buf, len, 0);
+
+                printf("loudness_reset sent\n");
+            }
             else if (!strcmp(line_buf, "unknown"))
             {
                 len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><unknown ip=\"192.168.4.4\" number=\"5555\" />\n");
