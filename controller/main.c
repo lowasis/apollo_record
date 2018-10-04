@@ -251,24 +251,16 @@ static int get_line(char *buffer, int size, int *index)
     return 0;
 }
 
-static void *channel_change(void *context, int index, void **arg)
+static int channel_change(IrRemoteContext *context, int index, int channel)
 {
-    IrRemoteContext *irremote_context = (IrRemoteContext *)context;
-    char *channel = (char *)arg[0];
+    int ret;
 
-    char *p;
-    strtol(channel, &p, 10);
-    if ((p - channel) != strlen(channel))
-    {
-        printf("Wrong channel number\n");
-
-        return NULL;
-    }
-
-    for (int i = 0; i < strlen(channel); i++)
+    char buf[4];
+    snprintf(buf, sizeof(buf), "%3d", channel);
+    for (int i = 0; i < strlen(buf); i++)
     {
         IrRemoteKey key;
-        switch (channel[i])
+        switch (buf[i])
         {
             case '0':
                 key = IRREMOTE_KEY_0;
@@ -314,15 +306,73 @@ static void *channel_change(void *context, int index, void **arg)
                 continue;
         }
 
-        irremote_send_key(&irremote_context[index], key);
+        ret = irremote_send_key(&context[index], key);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not send irremote key\n");
+
+            return -1;
+        }
 
         usleep(500 * 1000);
     }
 
-    irremote_send_key(&irremote_context[index], IRREMOTE_KEY_OK);
+    ret = irremote_send_key(&context[index], IRREMOTE_KEY_OK);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send irremote key\n");
+
+        return -1;
+    }
+
+    return 0;
 }
 
-static void *loudness_print(void *context, int index, void **arg)
+static int loudness_reset(IpcContext *context, int index)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_ANALYZER_RESET;
+    ipc_message.arg[0] = 0;
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static void *command_func_channel_change(void *context, int index, void **arg)
+{
+    int ret;
+
+    IrRemoteContext *irremote_context = (IrRemoteContext *)context;
+    char *channel = (char *)arg[0];
+
+    char *p;
+    int number;
+    number = strtol(channel, &p, 10);
+    if ((p - channel) != strlen(channel))
+    {
+        printf("Wrong channel number\n");
+
+        return NULL;
+    }
+
+    ret = channel_change(irremote_context, index, number);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not change channel\n");
+
+        return NULL;
+    }
+}
+
+static void *command_func_loudness_print(void *context, int index, void **arg)
 {
     Loudness *loudness = (Loudness *)context;
 
@@ -332,7 +382,7 @@ static void *loudness_print(void *context, int index, void **arg)
            loudness[index].integrated);
 }
 
-static void *program_end(void *context, int index, void **arg)
+static void *command_func_program_end(void *context, int index, void **arg)
 {
     int *program_end_flag = (int *)context;
 
@@ -582,6 +632,65 @@ int main(int argc, char **argv)
                     status_send_flag = 0;
                     break;
 
+                case MESSENGER_MESSAGE_TYPE_CHANNEL_CHANGE:
+                    printf("[%.3f] Channel change\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        MessengerChannelChangeData *data;
+                        data = (MessengerChannelChangeData *)
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            if (lircd_socket_name_count <= data[i].index)
+                            {
+                                fprintf(stderr, "Wrong channel change index\n");
+                                break;
+                            }
+
+                            ret = channel_change(irremote_context,
+                                                 data[i].index,
+                                                 data[i].channel);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not change channel\n");
+                                break;
+                            }
+
+                            if (data[i].index < ipc_socket_name_count)
+                            {
+                                status[data[i].index].channel = data[i].channel;
+                            }
+                        }
+                    }
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET:
+                    printf("[%.3f] Loudness reset\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        MessengerLoudnessResetData *data;
+                        data = (MessengerLoudnessResetData *)
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            if (ipc_socket_name_count <= data[i].index)
+                            {
+                                fprintf(stderr, "Wrong loudness reset index\n");
+                                break;
+                            }
+
+                            ret = loudness_reset(ipc_context, data[i].index);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not reset loudness\n");
+                                break;
+                            }
+                        }
+                    }
+                    break;
+
                 default:
                     break;
             }
@@ -768,11 +877,12 @@ int main(int argc, char **argv)
                     int index_count;
                     int argc;
                 } command_table[] = {
-                    {"channel", channel_change, irremote_context, 1,
-                            lircd_socket_name_count, 1},
-                    {"loudness", loudness_print, loudness, 1,
-                            ipc_socket_name_count, 0},
-                    {"end", program_end, &program_end_flag, 0, 0, 0},
+                    {"channel", command_func_channel_change, irremote_context,
+                            1, lircd_socket_name_count, 1},
+                    {"loudness", command_func_loudness_print, loudness,
+                            1, ipc_socket_name_count, 0},
+                    {"end", command_func_program_end, &program_end_flag,
+                            0, 0, 0},
                     {NULL, NULL, NULL, 0, 0, 0}
                 };
 
