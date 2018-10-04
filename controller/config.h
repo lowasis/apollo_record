@@ -11,6 +11,12 @@ extern "C" {
 
 #define IRREMOTE_MODEL              (IRREMOTE_MODEL_SKB_BTV)
 
+#define MESSENGER_BUFFER_SIZE       (64 * 1024)
+
+#define LOUDNESS_SEND_PERIOD_MSEC   (200)
+
+#define STATUS_SEND_PERIOD_MSEC     (200)
+
 #define LINE_BUFFER_SIZE            (128)
 
 #define COMMAND_ARGUMENT_COUNT      (4)

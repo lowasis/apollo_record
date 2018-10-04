@@ -3,8 +3,8 @@ CC = $(CROSS_COMPILE)gcc
 CFLAGS = -MMD
 LDFLAGS =
 INCS =
-LIBS = -llirc_client
-OBJS = main.o ipc.o irremote.o
+LIBS = -llirc_client -lxml2
+OBJS = main.o ipc.o irremote.o messenger.o
 TARGET = apollo_controller
 
 .PHONY : all clean

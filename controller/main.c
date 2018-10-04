@@ -5,17 +5,30 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <math.h>
 #include <sys/time.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 #include "config.h"
 #include "ipc.h"
 #include "irremote.h"
+#include "messenger.h"
 
 
 typedef struct Loudness {
-    char momentary[8];
-    char shortterm[8];
-    char integrated[8];
+    double reference;
+    double momentary;
+    double shortterm;
+    double integrated;
 } Loudness;
+
+typedef struct Status {
+    int channel;
+    int recording;
+} Status;
 
 
 static void print_usage(char *name)
@@ -27,18 +40,21 @@ static void print_usage(char *name)
 
     printf("Usage: %s [options]\n"
            "Options:\n"
-           "-h | --help           Print this message\n"
-           "-s | --socket name    IPC socket name(s) (max %d sockets)\n"
-           "-l | --lircd name     lircd socket name(s) (max %d sockets)\n"
+           "-h | --help               Print this message\n"
+           "-s | --socket name        IPC socket name(s) (max %d sockets)\n"
+           "-l | --lircd name         lircd socket name(s) (max %d sockets)\n"
+           "-m | --messenger number   Messenger port number\n"
            "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT);
 }
 
 static int get_option(int argc, char **argv, char **ipc_socket_name,
                       int *ipc_socket_name_count, char **lircd_socket_name,
-                      int *lircd_socket_name_count)
+                      int *lircd_socket_name_count,
+                      int *messenger_port_number)
 {
     if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
-        !lircd_socket_name || !lircd_socket_name_count)
+        !lircd_socket_name || !lircd_socket_name_count ||
+        !messenger_port_number)
     {
         return -1;
     }
@@ -53,14 +69,16 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
         lircd_socket_name[i] = NULL;
     }
     *lircd_socket_name_count = 0;
+    *messenger_port_number = 0;
 
     while (1)
     {
-        const char short_options[] = "hs:l:";
+        const char short_options[] = "hs:l:m:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"socket", required_argument, NULL, 's'},
-            {"lircd", required_argument, NULL, 's'},
+            {"lircd", required_argument, NULL, 'l'},
+            {"messenger", required_argument, NULL, 'm'},
             {0, 0, 0, 0}
         };
         int index;
@@ -93,12 +111,17 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 }
                 break;
 
+            case 'm':
+                *messenger_port_number = strtol(optarg, NULL, 10);
+                break;
+
             default:
                 return -1;
         }
     }
 
-    if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0)
+    if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0 ||
+        *messenger_port_number == 0)
     {
         return -1;
     }
@@ -112,6 +135,87 @@ static uint64_t get_usec(void)
     gettimeofday(&time, NULL);
 
     return (uint64_t)time.tv_sec * 1000000 + time.tv_usec;
+}
+
+static int get_my_ip(char *buffer)
+{
+    int ret;
+
+    if (!buffer)
+    {
+        return -1;
+    }
+
+    buffer[0] = 0;
+
+    int fd;
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd == -1)
+    {
+        fprintf(stderr, "Could not open socket\n");
+
+        return -1;
+    }
+
+    struct ifconf ifc;
+    memset(&ifc, 0, sizeof(ifc));
+    ifc.ifc_len = sizeof(struct ifreq) * 8;
+    ifc.ifc_buf = malloc(ifc.ifc_len);
+    if (!ifc.ifc_buf)
+    {
+        fprintf(stderr, "Could not allocate ifconf buffer\n");
+
+        close(fd);
+
+        return -1;
+    }
+
+    ret = ioctl(fd, SIOCGIFCONF, (char *)&ifc);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not ioctl ifconf\n");
+
+        free(ifc.ifc_buf);
+
+        close(fd);
+
+        return -1;
+    }
+
+    struct ifreq *ifr;
+    ifr = ifc.ifc_req;
+    for (int i = 0; i < ifc.ifc_len; i += sizeof(struct ifreq))
+    {
+        struct sockaddr_in *sin;
+        sin = (struct sockaddr_in *)&ifr->ifr_addr;
+        char *ip;
+        ip = inet_ntoa(sin->sin_addr);
+        if (strncmp(ip, "127.0.0.1", strlen("127.0.0.1")))
+        {
+            strncpy(buffer, ip, strlen(ip));
+
+            break;
+        }
+
+        ifr++;
+    }
+
+    if (strlen(buffer) == 0)
+    {
+        fprintf(stderr, "Could not find ip\n");
+
+        free(ifc.ifc_buf);
+
+        close(fd);
+
+        return -1;
+    }
+
+    free(ifc.ifc_buf);
+
+    close(fd);
+
+    return 0;
 }
 
 static int get_line(char *buffer, int size, int *index)
@@ -222,7 +326,8 @@ static void *loudness_print(void *context, int index, void **arg)
 {
     Loudness *loudness = (Loudness *)context;
 
-    printf("Momentary %s, Shortterm %s, Integrated %s\n",
+    printf("Reference %2.1f, Momentary %2.1f, Shortterm %2.1f, "
+           "Integrated %2.1f\n", loudness[index].reference,
            loudness[index].momentary, loudness[index].shortterm,
            loudness[index].integrated);
 }
@@ -244,8 +349,10 @@ int main(int argc, char **argv)
     int ipc_socket_name_count = 0;
     char *lircd_socket_name[LIRCD_SOCKET_COUNT] = {NULL,};
     int lircd_socket_name_count = 0;
+    int messenger_port_number = 0;
     ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
-                     lircd_socket_name, &lircd_socket_name_count);
+                     lircd_socket_name, &lircd_socket_name_count,
+                     &messenger_port_number);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -293,11 +400,57 @@ int main(int argc, char **argv)
         }
     }
 
+    MessengerContext messenger_context;
+    ret = messenger_init(messenger_port_number, MESSENGER_BUFFER_SIZE,
+                         &messenger_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize messenger\n");
+
+        for (int i = 0; i < lircd_socket_name_count; i++)
+        {
+            irremote_uninit(&irremote_context[i]);
+        }
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            ipc_uninit(&ipc_context[i]);
+        }
+
+        return -1;
+    }
+
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     ret = fcntl(STDIN_FILENO, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
         fprintf(stderr, "Could not set stdin flag\n");
+
+        messenger_uninit(&messenger_context);
+
+        for (int i = 0; i < lircd_socket_name_count; i++)
+        {
+            irremote_uninit(&irremote_context[i]);
+        }
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            ipc_uninit(&ipc_context[i]);
+        }
+
+        return -1;
+    }
+
+    char my_ip[16];
+    ret = get_my_ip(my_ip);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get my ip\n");
+
+        ret = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+        messenger_uninit(&messenger_context);
 
         for (int i = 0; i < lircd_socket_name_count; i++)
         {
@@ -317,8 +470,16 @@ int main(int argc, char **argv)
     char *integrated;
     Loudness loudness[IPC_SOCKET_COUNT] = {0,};
 
+    Status status[IPC_SOCKET_COUNT] = {0,};
+
     char line_buffer[LINE_BUFFER_SIZE] = {0,};
     int line_buffer_index = 0;
+
+    uint64_t loudness_send_usec = 0;
+    int loudness_send_flag = 0;
+
+    uint64_t status_send_usec = 0;
+    int status_send_flag = 0;
 
     int program_end_flag = 0;
 
@@ -359,12 +520,10 @@ int main(int argc, char **argv)
                             break;
                         }
 
-                        strncpy(loudness[i].momentary, momentary,
-                                sizeof(loudness[i].momentary));
-                        strncpy(loudness[i].shortterm, shortterm,
-                                sizeof(loudness[i].shortterm));
-                        strncpy(loudness[i].integrated, integrated,
-                                sizeof(loudness[i].integrated));
+                        loudness[i].reference = -24.;
+                        loudness[i].momentary = strtod(momentary, NULL);
+                        loudness[i].shortterm = strtod(shortterm, NULL);
+                        loudness[i].integrated = strtod(integrated, NULL);
                         break;
 
                     case IPC_COMMAND_PROGRAM_END:
@@ -377,6 +536,143 @@ int main(int argc, char **argv)
                         break;
                 }
             }
+        }
+
+        MessengerMessage messenger_recv_message;
+        ret = messenger_receive_message(&messenger_context,
+                                        &messenger_recv_message);
+        if (ret == 0)
+        {
+            float time;
+            time = (float)(get_usec() - start_usec) / 1000000;
+
+            //printf("[%.3f] Messenger message received\n", time);
+
+            MessengerMessage messenger_message;
+            messenger_message.type = MESSENGER_MESSAGE_TYPE_ACK;
+            strncpy(messenger_message.ip, my_ip, sizeof(messenger_message.ip));
+            messenger_message.number = messenger_recv_message.number;
+            messenger_message.count = 0;
+            messenger_message.data = NULL;
+            messenger_send_message(&messenger_context, &messenger_message);
+
+            switch (messenger_recv_message.type)
+            {
+                case MESSENGER_MESSAGE_TYPE_LOUDNESS_START:
+                    printf("[%.3f] Loudness send start\n", time);
+
+                    loudness_send_flag = 1;
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_LOUDNESS_STOP:
+                    printf("[%.3f] Loudness send stop\n", time);
+
+                    loudness_send_flag = 0;
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_STATUS_START:
+                    printf("[%.3f] Status send start\n", time);
+
+                    status_send_flag = 1;
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_STATUS_STOP:
+                    printf("[%.3f] Status send stop\n", time);
+
+                    status_send_flag = 0;
+                    break;
+
+                default:
+                    break;
+            }
+
+            if (messenger_recv_message.data)
+            {
+                free(messenger_recv_message.data);
+            }
+        }
+
+        uint64_t diff_usec;
+        diff_usec = get_usec() - loudness_send_usec;
+        if (LOUDNESS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
+        {
+            if (loudness_send_flag)
+            {
+                MessengerLoudnessData data[ipc_socket_name_count];
+                for (int i = 0; i < ipc_socket_name_count; i++)
+                {
+                    data[i].index = i;
+                    data[i].reference = loudness[i].reference;
+                    if (isinf(data[i].reference) || isnan(data[i].reference))
+                    {
+                        data[i].reference = 0.;
+                    }
+                    data[i].momentary = loudness[i].momentary;
+                     if (isinf(data[i].momentary) || isnan(data[i].momentary))
+                    {
+                        data[i].momentary = 0.;
+                    }
+                    data[i].shortterm = loudness[i].shortterm;
+                    if (isinf(data[i].shortterm) || isnan(data[i].shortterm))
+                    {
+                        data[i].shortterm = 0.;
+                    }
+                    data[i].integrated = loudness[i].integrated;
+                    if (isinf(data[i].integrated) || isnan(data[i].integrated))
+                    {
+                        data[i].integrated = 0.;
+                    }
+                }
+
+                MessengerMessage messenger_message;
+                messenger_message.type = MESSENGER_MESSAGE_TYPE_LOUDNESS;
+                strncpy(messenger_message.ip, my_ip,
+                        sizeof(messenger_message.ip));
+                messenger_message.number = 0;
+                messenger_message.count = ipc_socket_name_count;
+                messenger_message.data = (void *)data;
+                ret = messenger_send_message(&messenger_context,
+                                             &messenger_message);
+                if (ret != 0)
+                {
+                    fprintf(stderr,
+                                 "Could not send messenger loudness message\n");
+                }
+            }
+
+            loudness_send_usec = get_usec();
+        }
+
+        diff_usec = get_usec() - status_send_usec;
+        if (STATUS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
+        {
+            if (status_send_flag)
+            {
+                MessengerStatusData data[ipc_socket_name_count];
+                for (int i = 0; i < ipc_socket_name_count; i++)
+                {
+                    data[i].index = i;
+                    data[i].channel = status[i].channel;
+                    data[i].recording = status[i].recording;
+                }
+
+                MessengerMessage messenger_message;
+                messenger_message.type = MESSENGER_MESSAGE_TYPE_STATUS;
+                strncpy(messenger_message.ip, my_ip,
+                        sizeof(messenger_message.ip));
+                messenger_message.number = 0;
+                messenger_message.count = ipc_socket_name_count;
+                messenger_message.data = (void *)data;
+                ret = messenger_send_message(&messenger_context,
+                                             &messenger_message);
+                if (ret != 0)
+                {
+                    fprintf(stderr,
+                                   "Could not send messenger status message\n");
+                }
+            }
+
+            status_send_usec = get_usec();
         }
 
         ret = get_line(line_buffer, sizeof(line_buffer), &line_buffer_index);
@@ -540,6 +836,8 @@ int main(int argc, char **argv)
 
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+    messenger_uninit(&messenger_context);
 
     for (int i = 0; i < lircd_socket_name_count; i++)
     {
