@@ -1,6 +1,6 @@
 Q_ = $(if $(V),,@)
 CC = $(CROSS_COMPILE)gcc
-CFLAGS = -MMD
+CFLAGS = -MMD `xml2-config --cflags`
 LDFLAGS =
 INCS =
 LIBS = -llirc_client -lxml2
