@@ -1250,8 +1250,8 @@ int main(int argc, char **argv)
 
                 ipc_message.command = IPC_COMMAND_AV_RECORD_START;
                 snprintf(ipc_message.arg, sizeof(ipc_message.arg),
-                         "Ch%d_%s_%s_%s.ts", current_schedule->channel, start,
-                         end, curr);
+                         "Ch%d_%s_%s_%s_%d.ts", current_schedule->channel, start,
+                         end, curr, i);
                 remove_non_filename_character(ipc_message.arg,
                                               sizeof(ipc_message.arg));
                 ret = ipc_send_message(&ipc_context[i], &ipc_message);
