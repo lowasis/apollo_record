@@ -52,17 +52,19 @@ static void print_usage(char *name)
            "-s | --socket name        IPC socket name(s) (max %d sockets)\n"
            "-l | --lircd name         lircd socket name(s) (max %d sockets)\n"
            "-m | --messenger number   Messenger port number\n"
+           "-L | --log path           Loudness log path\n"
+           "-R | --record path        AV record path\n"
            "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT);
 }
 
 static int get_option(int argc, char **argv, char **ipc_socket_name,
                       int *ipc_socket_name_count, char **lircd_socket_name,
-                      int *lircd_socket_name_count,
-                      int *messenger_port_number)
+                      int *lircd_socket_name_count, int *messenger_port_number,
+                      char **loudness_log_path, char **av_record_path)
 {
     if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
         !lircd_socket_name || !lircd_socket_name_count ||
-        !messenger_port_number)
+        !messenger_port_number || !loudness_log_path || !av_record_path)
     {
         return -1;
     }
@@ -78,15 +80,19 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
     }
     *lircd_socket_name_count = 0;
     *messenger_port_number = 0;
+    *loudness_log_path = NULL;
+    *av_record_path = NULL;
 
     while (1)
     {
-        const char short_options[] = "hs:l:m:";
+        const char short_options[] = "hs:l:m:L:R:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"socket", required_argument, NULL, 's'},
             {"lircd", required_argument, NULL, 'l'},
             {"messenger", required_argument, NULL, 'm'},
+            {"log", required_argument, NULL, 'L'},
+            {"record", required_argument, NULL, 'R'},
             {0, 0, 0, 0}
         };
         int index;
@@ -123,13 +129,21 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 *messenger_port_number = strtol(optarg, NULL, 10);
                 break;
 
+            case 'L':
+                *loudness_log_path = optarg;
+                break;
+
+            case 'R':
+                *av_record_path = optarg;
+                break;
+
             default:
                 return -1;
         }
     }
 
     if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0 ||
-        *messenger_port_number == 0)
+        *messenger_port_number == 0 || !*loudness_log_path || !*av_record_path)
     {
         return -1;
     }
@@ -451,7 +465,8 @@ static int loudness_reset(IpcContext *context, int index)
     return 0;
 }
 
-static int loudness_log_start(IpcContext *context, int index, int channel)
+static int loudness_log_start(IpcContext *context, int index, int channel,
+                              char *path)
 {
     int ret;
 
@@ -464,9 +479,11 @@ static int loudness_log_start(IpcContext *context, int index, int channel)
 
     IpcMessage ipc_message;
     ipc_message.command = IPC_COMMAND_LOUDNESS_LOG_START;
-    snprintf(ipc_message.arg, sizeof(ipc_message.arg), "Ch%d_%s_%d.log",
-             channel, curr, index);
-    remove_non_filename_character(ipc_message.arg, sizeof(ipc_message.arg));
+    ret = snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s/", path);
+    snprintf(&ipc_message.arg[ret], sizeof(ipc_message.arg) - ret,
+             "Ch%d_%s_%d.log", channel, curr, index);
+    remove_non_filename_character(&ipc_message.arg[ret],
+                                  sizeof(ipc_message.arg) - ret);
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
@@ -497,7 +514,7 @@ static int loudness_log_end(IpcContext *context, int index)
 }
 
 static int av_record_start(IpcContext *context, int index, time_t start_time,
-                           time_t end_time, int channel)
+                           time_t end_time, int channel, char *path)
 {
     int ret;
 
@@ -524,9 +541,11 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
 
     IpcMessage ipc_message;
     ipc_message.command = IPC_COMMAND_AV_RECORD_START;
-    snprintf(ipc_message.arg, sizeof(ipc_message.arg), "Ch%d_%s_%s_%s_%d.ts",
-             channel, start, end, curr, index);
-    remove_non_filename_character(ipc_message.arg, sizeof(ipc_message.arg));
+    ret = snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s/", path);
+    snprintf(&ipc_message.arg[ret], sizeof(ipc_message.arg) - ret,
+             "Ch%d_%s_%s_%s_%d.ts", channel, start, end, curr, index);
+    remove_non_filename_character(&ipc_message.arg[ret],
+                                  sizeof(ipc_message.arg) - ret);
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
@@ -791,9 +810,12 @@ int main(int argc, char **argv)
     char *lircd_socket_name[LIRCD_SOCKET_COUNT] = {NULL,};
     int lircd_socket_name_count = 0;
     int messenger_port_number = 0;
+    char *loudness_log_path = NULL;
+    char *av_record_path = NULL;
     ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
                      lircd_socket_name, &lircd_socket_name_count,
-                     &messenger_port_number);
+                     &messenger_port_number, &loudness_log_path,
+                     &av_record_path);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -930,7 +952,8 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
-        ret = loudness_log_start(ipc_context, i, status[i].channel);
+        ret = loudness_log_start(ipc_context, i, status[i].channel,
+                                 loudness_log_path);
         if (ret == 0)
         {
             float time;
@@ -1091,7 +1114,8 @@ int main(int argc, char **argv)
 
                                 ret = loudness_log_start(ipc_context,
                                                 data[i].index,
-                                                status[data[i].index].channel);
+                                                status[data[i].index].channel,
+                                                loudness_log_path);
                                 if (ret == 0)
                                 {
                                     float time;
@@ -1375,7 +1399,8 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Could not reset loudness\n");
                 }
 
-                ret = loudness_log_start(ipc_context, i, status[i].channel);
+                ret = loudness_log_start(ipc_context, i, status[i].channel,
+                                         loudness_log_path);
                 if (ret == 0)
                 {
                     float time;
@@ -1386,7 +1411,8 @@ int main(int argc, char **argv)
 
                 ret = av_record_start(ipc_context, i, current_schedule->start,
                                       current_schedule->end,
-                                      current_schedule->channel);
+                                      current_schedule->channel,
+                                      av_record_path);
                 if (ret == 0)
                 {
                     float time;
