@@ -496,6 +496,66 @@ static int loudness_log_end(IpcContext *context, int index)
     return 0;
 }
 
+static int av_record_start(IpcContext *context, int index, time_t start_time,
+                           time_t end_time, int channel)
+{
+    int ret;
+
+    char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(start_time, start, sizeof(start));
+    if (ret != 0)
+    {
+        strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+    }
+
+    char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(end_time, end, sizeof(end));
+    if (ret != 0)
+    {
+        strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+    }
+
+    char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(time(NULL), curr, sizeof(curr));
+    if (ret != 0)
+    {
+        strncpy(curr, "1970-01-01 00:00:00", sizeof(curr));
+    }
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AV_RECORD_START;
+    snprintf(ipc_message.arg, sizeof(ipc_message.arg), "Ch%d_%s_%s_%s_%d.ts",
+             channel, start, end, curr, index);
+    remove_non_filename_character(ipc_message.arg, sizeof(ipc_message.arg));
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static int av_record_end(IpcContext *context, int index)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AV_RECORD_END;
+    ipc_message.arg[0] = 0;
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -1324,59 +1384,28 @@ int main(int argc, char **argv)
                     printf("[%.3f] %d, Loudness log start\n", time, i);
                 }
 
-                char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
-                ret = convert_unixtime_to_localtime_str(current_schedule->start,
-                                                       start, sizeof(start));
-                if (ret != 0)
-                {
-                    strncpy(start, "1970-01-01 00:00:00", sizeof(start));
-                }
-
-                char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
-                ret = convert_unixtime_to_localtime_str(current_schedule->end,
-                                                        end, sizeof(end));
-                if (ret != 0)
-                {
-                    strncpy(end, "1970-01-01 00:00:00", sizeof(end));
-                }
-
-                char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
-                ret = convert_unixtime_to_localtime_str(time(NULL),
-                                                        curr, sizeof(curr));
-                if (ret != 0)
-                {
-                    strncpy(curr, "1970-01-01 00:00:00", sizeof(curr));
-                }
-
-                ipc_message.command = IPC_COMMAND_AV_RECORD_START;
-                snprintf(ipc_message.arg, sizeof(ipc_message.arg),
-                         "Ch%d_%s_%s_%s_%d.ts", current_schedule->channel, start,
-                         end, curr, i);
-                remove_non_filename_character(ipc_message.arg,
-                                              sizeof(ipc_message.arg));
-                ret = ipc_send_message(&ipc_context[i], &ipc_message);
+                ret = av_record_start(ipc_context, i, current_schedule->start,
+                                      current_schedule->end,
+                                      current_schedule->channel);
                 if (ret == 0)
                 {
                     float time;
                     time = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, AV record start (%s)\n", time,
-                           i, ipc_message.arg);
+                    printf("[%.3f] %d, AV record start\n", time, i);
 
                     status[i].recording = 1;
                 }
             }
             else if (ret != 0 && status[i].recording)
             {
-                ipc_message.command = IPC_COMMAND_AV_RECORD_END;
-                ipc_message.arg[0] = 0;
-                ret = ipc_send_message(&ipc_context[i], &ipc_message);
+                ret = av_record_end(ipc_context, i);
                 if (ret == 0)
                 {
                     float time;
                     time = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, AV record stop\n", time, i);
+                    printf("[%.3f] %d, AV record end\n", time, i);
 
                     status[i].recording = 0;
                 }
