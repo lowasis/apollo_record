@@ -259,6 +259,36 @@ static int get_line(char *buffer, int size, int *index)
     return 0;
 }
 
+static int get_current_schedule(Schedule *schedule, int index,
+                                time_t unixtime, Schedule **current_schedule)
+{
+    int ret;
+
+    if (!schedule || !current_schedule)
+    {
+        return -1;
+    }
+
+    *current_schedule = NULL;
+    for (int i = 0; 0 <= schedule[i].index; i++)
+    {
+        if (schedule[i].index == index && schedule[i].start <= unixtime &&
+            unixtime < schedule[i].end)
+        {
+            *current_schedule = &schedule[i];
+
+            break;
+        }
+    }
+
+    if (!*current_schedule)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int convert_localtime_str_to_unixtime(char *str, time_t *unixtime)
 {
     if (!str || !unixtime)
@@ -298,6 +328,29 @@ static int convert_unixtime_to_localtime_str(time_t unixtime, char *str,
         fprintf(stderr, "Could not strftime\n");
 
         return -1;
+    }
+
+    return 0;
+}
+
+static int remove_non_filename_character(char *str, int size)
+{
+    if (!str)
+    {
+        return -1;
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        if (str[i] == '\\' || str[i] == '/' || str[i] == ':' || str[i] == '*' ||
+            str[i] == '?' || str[i] == '\"' || str[i] == '<' || str[i] == '>' ||
+            str[i] == '|' || str[i] == '-' || str[i] == ' ')
+        {
+            for (int j = i + 1; j < size; j++)
+            {
+                str[j - 1] = str[j];
+            }
+        }
     }
 
     return 0;
@@ -1132,6 +1185,83 @@ int main(int argc, char **argv)
             }
 
             status_send_usec = get_usec();
+        }
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            Schedule *current_schedule;
+            ret = get_current_schedule(schedule, i, time(NULL),
+                                       &current_schedule);
+            if (ret == 0 && !status[i].recording)
+            {
+                if (current_schedule->index < lircd_socket_name_count)
+                {
+                    ret = channel_change(irremote_context,
+                                         current_schedule->index,
+                                         current_schedule->channel);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not change AV record channel\n");
+                    }
+                }
+
+                char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(current_schedule->start,
+                                                       start, sizeof(start));
+                if (ret != 0)
+                {
+                    strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+                }
+
+                char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(current_schedule->end,
+                                                        end, sizeof(end));
+                if (ret != 0)
+                {
+                    strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+                }
+
+                char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(time(NULL),
+                                                        curr, sizeof(curr));
+                if (ret != 0)
+                {
+                    strncpy(curr, "1970-01-01 00:00:00", sizeof(curr));
+                }
+
+                ipc_message.command = IPC_COMMAND_AV_RECORD_START;
+                snprintf(ipc_message.arg, sizeof(ipc_message.arg),
+                         "Ch%d_%s_%s_%s.ts", current_schedule->channel, start,
+                         end, curr);
+                remove_non_filename_character(ipc_message.arg,
+                                              sizeof(ipc_message.arg));
+                ret = ipc_send_message(&ipc_context[i], &ipc_message);
+                if (ret == 0)
+                {
+                    float time;
+                    time = (float)(get_usec() - start_usec) / 1000000;
+
+                    printf("[%.3f] %d, AV record start (%s)\n", time,
+                           i, ipc_message.arg);
+                }
+
+                status[i].recording = 1;
+            }
+            else if (ret != 0 && status[i].recording)
+            {
+                ipc_message.command = IPC_COMMAND_AV_RECORD_END;
+                ipc_message.arg[0] = 0;
+                ret = ipc_send_message(&ipc_context[i], &ipc_message);
+                if (ret == 0)
+                {
+                    float time;
+                    time = (float)(get_usec() - start_usec) / 1000000;
+
+                    printf("[%.3f] %d, AV record stop\n", time, i);
+                }
+
+                status[i].recording = 0;
+            }
         }
 
         ret = get_line(line_buffer, sizeof(line_buffer), &line_buffer_index);
