@@ -73,7 +73,7 @@ int main(int argc, char **argv)
     char line_buf[128];
     int idx = 0;
 
-    char buf[256];
+    char buf[1024];
     int len;
 
     while(1)
@@ -122,6 +122,23 @@ int main(int argc, char **argv)
                 send(sockfd, buf, len, 0);
 
                 printf("loudness_reset sent\n");
+            }
+            else if (!strcmp(line_buf, "schedule"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><schedule ip=\"10.10.1.10\" number=\"63233\"><card index=\"1\" start=\"2018-09-18 18:40:00\" end=\"2018-09-18 18:50:00\" channel=\"11\" />"
+                                                 "<card index=\"1\" start=\"2018-09-30 10:30:25\" end=\"2018-10-02 04:29:00\" channel=\"15\" />"
+                                                 "<card index=\"2\" start=\"2018-09-19 00:00:00\" end=\"2018-09-19 01:00:00\" channel=\"7\" />"
+                                                 "<card index=\"5\" start=\"2018-09-17 15:00:00\" end=\"2018-09-20 18:00:00\" channel=\"29\" /></schedule>\n");
+                send(sockfd, buf, len, 0);
+
+                printf("schedule sent\n");
+            }
+            else if (!strcmp(line_buf, "schedule_request"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><schedule_request ip=\"10.10.1.20\" number=\"5323\" />\n");
+                send(sockfd, buf, len, 0);
+
+                printf("schedule_request sent\n");
             }
             else if (!strcmp(line_buf, "unknown"))
             {
