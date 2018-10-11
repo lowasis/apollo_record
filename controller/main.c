@@ -949,6 +949,17 @@ int main(int argc, char **argv)
                                     }
                                 }
                             }
+
+                            if (data[i].index < ipc_socket_name_count)
+                            {
+                                ret = loudness_reset(ipc_context,
+                                                     data[i].index);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr,
+                                            "Could not reset loudness\n");
+                                }
+                            }
                         }
                     }
                     break;
@@ -963,17 +974,15 @@ int main(int argc, char **argv)
                                                     messenger_recv_message.data;
                         for (int i = 0; i < messenger_recv_message.count; i++)
                         {
-                            if (ipc_socket_name_count <= data[i].index)
+                            if (data[i].index < ipc_socket_name_count)
                             {
-                                fprintf(stderr, "Wrong loudness reset index\n");
-                                break;
-                            }
-
-                            ret = loudness_reset(ipc_context, data[i].index);
-                            if (ret != 0)
-                            {
-                                fprintf(stderr, "Could not reset loudness\n");
-                                break;
+                                ret = loudness_reset(ipc_context,
+                                                     data[i].index);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr,
+                                            "Could not reset loudness\n");
+                                }
                             }
                         }
                     }
@@ -1207,6 +1216,12 @@ int main(int argc, char **argv)
                     {
                         status[i].channel = current_schedule->channel;
                     }
+                }
+
+                ret = loudness_reset(ipc_context, i);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not reset loudness\n");
                 }
 
                 char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
