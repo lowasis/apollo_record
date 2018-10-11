@@ -930,24 +930,24 @@ int main(int argc, char **argv)
                                                     messenger_recv_message.data;
                         for (int i = 0; i < messenger_recv_message.count; i++)
                         {
-                            if (lircd_socket_name_count <= data[i].index)
+                            if (data[i].index < lircd_socket_name_count)
                             {
-                                fprintf(stderr, "Wrong channel change index\n");
-                                break;
-                            }
-
-                            ret = channel_change(irremote_context,
-                                                 data[i].index,
-                                                 data[i].channel);
-                            if (ret != 0)
-                            {
-                                fprintf(stderr, "Could not change channel\n");
-                                break;
-                            }
-
-                            if (data[i].index < ipc_socket_name_count)
-                            {
-                                status[data[i].index].channel = data[i].channel;
+                                ret = channel_change(irremote_context,
+                                                     data[i].index,
+                                                     data[i].channel);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr,
+                                            "Could not change channel\n");
+                                }
+                                else
+                                {
+                                    if (data[i].index < ipc_socket_name_count)
+                                    {
+                                        status[data[i].index].channel =
+                                                                data[i].channel;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1194,14 +1194,18 @@ int main(int argc, char **argv)
                                        &current_schedule);
             if (ret == 0 && !status[i].recording)
             {
-                if (current_schedule->index < lircd_socket_name_count)
+                if (i < lircd_socket_name_count)
                 {
                     ret = channel_change(irremote_context,
-                                         current_schedule->index,
+                                         i,
                                          current_schedule->channel);
                     if (ret != 0)
                     {
                         fprintf(stderr, "Could not change AV record channel\n");
+                    }
+                    else
+                    {
+                        status[i].channel = current_schedule->channel;
                     }
                 }
 
@@ -1243,9 +1247,9 @@ int main(int argc, char **argv)
 
                     printf("[%.3f] %d, AV record start (%s)\n", time,
                            i, ipc_message.arg);
-                }
 
-                status[i].recording = 1;
+                    status[i].recording = 1;
+                }
             }
             else if (ret != 0 && status[i].recording)
             {
@@ -1258,9 +1262,9 @@ int main(int argc, char **argv)
                     time = (float)(get_usec() - start_usec) / 1000000;
 
                     printf("[%.3f] %d, AV record stop\n", time, i);
-                }
 
-                status[i].recording = 0;
+                    status[i].recording = 0;
+                }
             }
         }
 
