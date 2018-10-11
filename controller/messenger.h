@@ -14,7 +14,9 @@ typedef enum {
     MESSENGER_MESSAGE_TYPE_STATUS_START,
     MESSENGER_MESSAGE_TYPE_STATUS_STOP,
     MESSENGER_MESSAGE_TYPE_CHANNEL_CHANGE,
-    MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET
+    MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET,
+    MESSENGER_MESSAGE_TYPE_SCHEDULE,
+    MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST
 } MessengerMessageType;
 
 typedef struct MessengerMessage {
@@ -47,6 +49,13 @@ typedef struct MessengerChannelChangeData {
 typedef struct MessengerLoudnessResetData {
     int index;
 } MessengerLoudnessResetData;
+
+typedef struct MessengerScheduleData {
+    int index;
+    char start[24];
+    char end[24];
+    int channel;
+} MessengerScheduleData;
 
 typedef struct MessengerContext {
     int fd;

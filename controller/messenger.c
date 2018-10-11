@@ -300,6 +300,126 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
     return 0;
 }
 
+static int generate_schedule_xml(MessengerMessage *message,
+                                 xmlTextWriter *writer)
+{
+    int ret;
+
+    if (!message || !writer)
+    {
+        return -1;
+    }
+
+    ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not start xml document\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterStartElement(writer, BAD_CAST("schedule"));
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not start xml element\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("ip"), "%s",
+                                            message->ip);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not write xml attribute\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("number"), "%d",
+                                            message->number);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not write xml attribute\n");
+
+        return -1;
+    }
+
+    MessengerScheduleData *data;
+    data = (MessengerScheduleData *)message->data;
+    for (int i = 0; i < message->count; i++)
+    {
+        ret = xmlTextWriterStartElement(writer, BAD_CAST("card"));
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not start xml element\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("index"), "%d",
+                                                data[i].index);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("start"),
+                                                "%s", data[i].start);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("end"),
+                                                "%s", data[i].end);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("channel"),
+                                                "%d", data[i].channel);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterEndElement(writer);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not end xml element\n");
+
+            return -1;
+        }
+    }
+
+    ret = xmlTextWriterEndElement(writer);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not end xml element\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterEndDocument(writer);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not end xml document\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int generate_xml(MessengerMessage *message, char **buffer, int *size)
 {
     int ret;
@@ -356,6 +476,14 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             if (ret != 0)
             {
                 fprintf(stderr, "Could not generate status xml\n");
+            }
+            break;
+
+        case MESSENGER_MESSAGE_TYPE_SCHEDULE:
+            ret = generate_schedule_xml(message, writer);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not generate schedule xml\n");
             }
             break;
 
@@ -1105,6 +1233,314 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
     return 0;
 }
 
+static int parse_schedule_xml(xmlTextReader *reader,
+                              MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("schedule")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_SCHEDULE;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret != 1)
+        {
+            break;
+        }
+
+        xmlReaderTypes type;
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_ELEMENT)
+        {
+            break;
+        }
+
+        const xmlChar *str;
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("card")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        int size;
+        size = sizeof(MessengerScheduleData) * (message->count + 1);
+        message->data = (void *)realloc(message->data, size);
+        if (!message->data)
+        {
+            fprintf(stderr, "Could not reallocate data buffer\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        MessengerScheduleData *data;
+        data = (MessengerScheduleData *)message->data;
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("index"));
+        if (str)
+        {
+            data[message->count].index = strtol(str, NULL, 10);
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("start"));
+        if (str)
+        {
+            strncpy(data[message->count].start, str,
+                    sizeof(data[message->count].start));
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("end"));
+        if (str)
+        {
+            strncpy(data[message->count].end, str,
+                    sizeof(data[message->count].end));
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("channel"));
+        if (str)
+        {
+            data[message->count].channel = strtol(str, NULL, 10);
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        message->count++;
+    }
+
+    return 0;
+}
+
+static int parse_schedule_request_xml(xmlTextReader *reader,
+                                      MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("schedule_request")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    return 0;
+}
+
 static int parse_xml(char *buffer, int size, MessengerMessage *message)
 {
     int ret;
@@ -1161,6 +1597,14 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     if (ret != 0)
     {
         ret = parse_loudness_reset_xml(reader, message);
+    }
+    if (ret != 0)
+    {
+        ret = parse_schedule_xml(reader, message);
+    }
+    if (ret != 0)
+    {
+        ret = parse_schedule_request_xml(reader, message);
     }
 
     if (ret != 0)

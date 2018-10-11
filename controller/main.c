@@ -6,6 +6,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <math.h>
+#include <time.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -29,6 +30,13 @@ typedef struct Status {
     int channel;
     int recording;
 } Status;
+
+typedef struct Schedule {
+    int index;
+    time_t start;
+    time_t end;
+    int channel;
+} Schedule;
 
 
 static void print_usage(char *name)
@@ -251,6 +259,50 @@ static int get_line(char *buffer, int size, int *index)
     return 0;
 }
 
+static int convert_localtime_str_to_unixtime(char *str, time_t *unixtime)
+{
+    if (!str || !unixtime)
+    {
+        return -1;
+    }
+
+    struct tm t;
+    if (!strptime(str, "%Y-%m-%d %H:%M:%S", &t))
+    {
+        fprintf(stderr, "Could not strptime\n");
+
+        return -1;
+    }
+
+    *unixtime = mktime(&t);
+
+    return 0;
+}
+
+static int convert_unixtime_to_localtime_str(time_t unixtime, char *str,
+                                             int size)
+{
+    int ret;
+
+    if (!str)
+    {
+        return -1;
+    }
+
+    struct tm *t;
+    t = localtime(&unixtime);
+
+    ret = strftime(str, size, "%Y-%m-%d %H:%M:%S", t);
+    if (ret != strlen("YYYY-MM-DD HH:MM:SS"))
+    {
+        fprintf(stderr, "Could not strftime\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int channel_change(IrRemoteContext *context, int index, int channel)
 {
     int ret;
@@ -380,6 +432,187 @@ static void *command_func_loudness_print(void *context, int index, void **arg)
            "Integrated %2.1f\n", loudness[index].reference,
            loudness[index].momentary, loudness[index].shortterm,
            loudness[index].integrated);
+}
+
+static void *command_func_schedule_add(void *context, int index, void **arg)
+{
+    int ret;
+
+    char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    snprintf(start, sizeof(start), "%s %s", (char *)arg[0], (char *)arg[1]);
+    time_t start_number;
+    ret = convert_localtime_str_to_unixtime(start, &start_number);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not convert local time string to unixtime\n");
+
+        return NULL;
+    }
+
+    char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    snprintf(end, sizeof(end), "%s %s", (char *)arg[2], (char *)arg[3]);
+    time_t end_number;
+    ret = convert_localtime_str_to_unixtime(end, &end_number);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not convert local time string to unixtime\n");
+
+        return NULL;
+    }
+
+    char *channel = (char *)arg[4];
+    char *p;
+    int channel_number;
+    channel_number = strtol(channel, &p, 10);
+    if ((p - channel) != strlen(channel))
+    {
+        printf("Wrong channel number\n");
+
+        return NULL;
+    }
+
+    int count = 0;
+    Schedule *schedule = *(Schedule **)context;
+    if (schedule)
+    {
+        for (int i = 0; 0 <= schedule[i].index; i++)
+        {
+            count++;
+        }
+    }
+
+    Schedule *new_schedule = (Schedule *)malloc(sizeof(Schedule) * (count + 2));
+    if (!new_schedule)
+    {
+        fprintf(stderr, "Could not allocate new schedule buffer\n");
+
+        return NULL;
+    }
+
+    if (schedule)
+    {
+        memcpy(new_schedule, schedule, sizeof(Schedule) * count);
+    }
+
+    new_schedule[count].index = index;
+    new_schedule[count].start = start_number;
+    new_schedule[count].end = end_number;
+    new_schedule[count].channel = channel_number;
+
+    new_schedule[count + 1].index = -1;
+
+    if (schedule)
+    {
+        free(schedule);
+    }
+
+    *(Schedule **)context = new_schedule;
+}
+
+static void *command_func_schedule_del(void *context, int index, void **arg)
+{
+    int ret;
+
+    char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    snprintf(start, sizeof(start), "%s %s", (char *)arg[0], (char *)arg[1]);
+    time_t start_number;
+    ret = convert_localtime_str_to_unixtime(start, &start_number);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not convert local time string to unixtime\n");
+
+        return NULL;
+    }
+
+    char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    snprintf(end, sizeof(end), "%s %s", (char *)arg[2], (char *)arg[3]);
+    time_t end_number;
+    ret = convert_localtime_str_to_unixtime(end, &end_number);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not convert local time string to unixtime\n");
+
+        return NULL;
+    }
+
+    char *channel = (char *)arg[4];
+    char *p;
+    int channel_number;
+    channel_number = strtol(channel, &p, 10);
+    if ((p - channel) != strlen(channel))
+    {
+        printf("Wrong channel number\n");
+
+        return NULL;
+    }
+
+    Schedule *schedule = *(Schedule **)context;
+    if (schedule)
+    {
+        int j = 0;
+        for (int i = 0; 0 <= schedule[i].index; i++)
+        {
+            if (i != j)
+            {
+                memcpy(&schedule[j], &schedule[i], sizeof(Schedule));
+            }
+
+            if (!(schedule[i].index == index &&
+                schedule[i].start == start_number &&
+                schedule[i].end == end_number &&
+                schedule[i].channel == channel_number))
+            {
+                j++;
+            }
+        }
+
+        schedule[j].index = -1;
+    }
+}
+
+static void *command_func_schedule_reset(void *context, int index, void **arg)
+{
+    Schedule *schedule = *(Schedule **)context;
+
+    if (schedule)
+    {
+        free(schedule);
+
+        *(Schedule **)context = NULL;
+    }
+}
+
+static void *command_func_schedule_print(void *context, int index, void **arg)
+{
+    int ret;
+
+    Schedule *schedule = *(Schedule **)context;
+
+    if (schedule)
+    {
+        for (int i = 0; 0 <= schedule[i].index; i++)
+        {
+            char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+            ret = convert_unixtime_to_localtime_str(schedule[i].start, start,
+                                                    sizeof(start));
+            if (ret != 0)
+            {
+                strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+            }
+
+            char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+            ret = convert_unixtime_to_localtime_str(schedule[i].end, end,
+                                                    sizeof(end));
+            if (ret != 0)
+            {
+                strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+            }
+
+            printf("Index %d, Start %ld(%s), End %ld(%s), Channel %d\n",
+                   schedule[i].index, schedule[i].start, start, schedule[i].end,
+                   end, schedule[i].channel);
+        }
+    }
 }
 
 static void *command_func_program_end(void *context, int index, void **arg)
@@ -521,6 +754,8 @@ int main(int argc, char **argv)
     Loudness loudness[IPC_SOCKET_COUNT] = {0,};
 
     Status status[IPC_SOCKET_COUNT] = {0,};
+
+    Schedule *schedule = NULL;
 
     char line_buffer[LINE_BUFFER_SIZE] = {0,};
     int line_buffer_index = 0;
@@ -688,6 +923,121 @@ int main(int argc, char **argv)
                                 break;
                             }
                         }
+                    }
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_SCHEDULE:
+                    printf("[%.3f] Schedule\n", time);
+
+                    if (schedule)
+                    {
+                        free(schedule);
+                    }
+
+                    schedule = (Schedule *)malloc(sizeof(Schedule) *
+                                            (messenger_recv_message.count + 1));
+                    if (!schedule)
+                    {
+                        fprintf(stderr, "Could not allocate schedule buffer\n");
+                        break;
+                    }
+
+                    for (int i = 0; i < (messenger_recv_message.count + 1); i++)
+                    {
+                        schedule[i].index = -1;
+                    }
+
+                    if (messenger_recv_message.data)
+                    {
+                        MessengerScheduleData *data;
+                        data = (MessengerScheduleData * )
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            schedule[i].index = data[i].index;
+                            ret = convert_localtime_str_to_unixtime(
+                                                            data[i].start,
+                                                            &schedule[i].start);
+                            if (ret != 0)
+                            {
+                                schedule[i].start = 0;
+                            }
+                            ret = convert_localtime_str_to_unixtime(
+                                                            data[i].end,
+                                                            &schedule[i].end);
+                            if (ret != 0)
+                            {
+                                schedule[i].end = 0;
+                            }
+                            schedule[i].channel = data[i].channel;
+                        }
+                    }
+                    break;
+
+                case MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST:
+                    printf("[%.3f] Schedule request\n", time);
+
+                    int count = 0;
+                    MessengerScheduleData *data = NULL;
+                    if (schedule)
+                    {
+                        for (int i = 0; 0 <= schedule[i].index; i++)
+                        {
+                            count++;
+                        }
+
+                        data = (MessengerScheduleData *)malloc(count *
+                                                sizeof(MessengerScheduleData));
+                        if (!data)
+                        {
+                            fprintf(stderr, "Could not allocate messenger "
+                                    "schedule data buffer\n");
+                            break;
+                        }
+
+                        for (int i = 0; i < count; i++)
+                        {
+                            data[i].index = schedule[i].index;
+                            ret = convert_unixtime_to_localtime_str(
+                                                         schedule[i].start,
+                                                         data[i].start,
+                                                         sizeof(data[i].start));
+                            if (ret != 0)
+                            {
+                                strncpy(data[i].start, "1970-01-01 00:00:00",
+                                        sizeof(data[i].start));
+                            }
+                            ret = convert_unixtime_to_localtime_str(
+                                                         schedule[i].end,
+                                                         data[i].end,
+                                                         sizeof(data[i].end));
+                            if (ret != 0)
+                            {
+                                strncpy(data[i].end, "1970-01-01 00:00:00",
+                                        sizeof(data[i].end));
+                            }
+                            data[i].channel = schedule[i].channel;
+                        }
+                    }
+
+                    MessengerMessage messenger_message;
+                    messenger_message.type = MESSENGER_MESSAGE_TYPE_SCHEDULE;
+                    strncpy(messenger_message.ip, my_ip,
+                            sizeof(messenger_message.ip));
+                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.count = count;
+                    messenger_message.data = (void *)data;
+                    ret = messenger_send_message(&messenger_context,
+                                                 &messenger_message);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr,
+                                "Could not send messenger schedule message\n");
+                    }
+
+                    if (data)
+                    {
+                        free(data);
                     }
                     break;
 
@@ -881,6 +1231,14 @@ int main(int argc, char **argv)
                             1, lircd_socket_name_count, 1},
                     {"loudness", command_func_loudness_print, loudness,
                             1, ipc_socket_name_count, 0},
+                    {"schedule_add", command_func_schedule_add, &schedule,
+                            1, ipc_socket_name_count, 5},
+                    {"schedule_del", command_func_schedule_del, &schedule,
+                            1, ipc_socket_name_count, 5},
+                    {"schedule_reset", command_func_schedule_reset, &schedule,
+                            0, 0, 0},
+                    {"schedule", command_func_schedule_print, &schedule,
+                            0, 0, 0},
                     {"end", command_func_program_end, &program_end_flag,
                             0, 0, 0},
                     {NULL, NULL, NULL, 0, 0, 0}

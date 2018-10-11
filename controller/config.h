@@ -19,7 +19,7 @@ extern "C" {
 
 #define LINE_BUFFER_SIZE            (128)
 
-#define COMMAND_ARGUMENT_COUNT      (4)
+#define COMMAND_ARGUMENT_COUNT      (6)
 
 #ifdef __cplusplus
 }
