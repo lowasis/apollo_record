@@ -451,6 +451,51 @@ static int loudness_reset(IpcContext *context, int index)
     return 0;
 }
 
+static int loudness_log_start(IpcContext *context, int index, int channel)
+{
+    int ret;
+
+    char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(time(NULL), curr, sizeof(curr));
+    if (ret != 0)
+    {
+        strncpy(curr, "1970-01-01 00:00:00", sizeof(curr));
+    }
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_LOUDNESS_LOG_START;
+    snprintf(ipc_message.arg, sizeof(ipc_message.arg), "Ch%d_%s_%d.log",
+             channel, curr, index);
+    remove_non_filename_character(ipc_message.arg, sizeof(ipc_message.arg));
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static int loudness_log_end(IpcContext *context, int index)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_LOUDNESS_LOG_END;
+    ipc_message.arg[0] = 0;
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -823,6 +868,18 @@ int main(int argc, char **argv)
 
     uint64_t start_usec = get_usec();
 
+    for (int i = 0; i < ipc_socket_name_count; i++)
+    {
+        ret = loudness_log_start(ipc_context, i, status[i].channel);
+        if (ret == 0)
+        {
+            float time;
+            time = (float)(get_usec() - start_usec) / 1000000;
+
+            printf("[%.3f] %d, Loudness log start\n", time, i);
+        }
+    }
+
     while (!program_end_flag)
     {
         IpcMessage ipc_message;
@@ -952,12 +1009,37 @@ int main(int argc, char **argv)
 
                             if (data[i].index < ipc_socket_name_count)
                             {
+                                ret = loudness_log_end(ipc_context,
+                                                       data[i].index);
+                                if (ret == 0)
+                                {
+                                    float time;
+                                    time = (float)(get_usec() - start_usec) /
+                                           1000000;
+
+                                    printf("[%.3f] %d, Loudness log end\n",
+                                           time, data[i].index);
+                                }
+
                                 ret = loudness_reset(ipc_context,
                                                      data[i].index);
                                 if (ret != 0)
                                 {
                                     fprintf(stderr,
                                             "Could not reset loudness\n");
+                                }
+
+                                ret = loudness_log_start(ipc_context,
+                                                data[i].index,
+                                                status[data[i].index].channel);
+                                if (ret == 0)
+                                {
+                                    float time;
+                                    time = (float)(get_usec() - start_usec) /
+                                           1000000;
+
+                                    printf("[%.3f] %d, Loudness log start\n",
+                                           time, data[i].index);
                                 }
                             }
                         }
@@ -1218,10 +1300,28 @@ int main(int argc, char **argv)
                     }
                 }
 
+                ret = loudness_log_end(ipc_context, i);
+                if (ret == 0)
+                {
+                    float time;
+                    time = (float)(get_usec() - start_usec) / 1000000;
+
+                    printf("[%.3f] %d, Loudness log end\n", time, i);
+                }
+
                 ret = loudness_reset(ipc_context, i);
                 if (ret != 0)
                 {
                     fprintf(stderr, "Could not reset loudness\n");
+                }
+
+                ret = loudness_log_start(ipc_context, i, status[i].channel);
+                if (ret == 0)
+                {
+                    float time;
+                    time = (float)(get_usec() - start_usec) / 1000000;
+
+                    printf("[%.3f] %d, Loudness log start\n", time, i);
                 }
 
                 char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
