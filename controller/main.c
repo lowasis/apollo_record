@@ -16,6 +16,7 @@
 #include "config.h"
 #include "ipc.h"
 #include "irremote.h"
+#include "database.h"
 #include "messenger.h"
 
 
@@ -49,8 +50,9 @@ static void print_usage(char *name)
     printf("Usage: %s [options]\n"
            "Options:\n"
            "-h | --help               Print this message\n"
-           "-s | --socket name        IPC socket name(s) (max %d sockets)\n"
+           "-i | --ipc name           IPC socket name(s) (max %d sockets)\n"
            "-l | --lircd name         lircd socket name(s) (max %d sockets)\n"
+           "-s | --sqlite name        Sqlite database name\n"
            "-m | --messenger number   Messenger port number\n"
            "-L | --log path           Loudness log path\n"
            "-R | --record path        AV record path\n"
@@ -59,12 +61,14 @@ static void print_usage(char *name)
 
 static int get_option(int argc, char **argv, char **ipc_socket_name,
                       int *ipc_socket_name_count, char **lircd_socket_name,
-                      int *lircd_socket_name_count, int *messenger_port_number,
-                      char **loudness_log_path, char **av_record_path)
+                      int *lircd_socket_name_count, char **sqlite_database_name,
+                      int *messenger_port_number, char **loudness_log_path,
+                      char **av_record_path)
 {
     if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
         !lircd_socket_name || !lircd_socket_name_count ||
-        !messenger_port_number || !loudness_log_path || !av_record_path)
+        !sqlite_database_name || !messenger_port_number ||
+        !loudness_log_path || !av_record_path)
     {
         return -1;
     }
@@ -79,17 +83,19 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
         lircd_socket_name[i] = NULL;
     }
     *lircd_socket_name_count = 0;
+    *sqlite_database_name = NULL;
     *messenger_port_number = 0;
     *loudness_log_path = NULL;
     *av_record_path = NULL;
 
     while (1)
     {
-        const char short_options[] = "hs:l:m:L:R:";
+        const char short_options[] = "hi:l:s:m:L:R:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
-            {"socket", required_argument, NULL, 's'},
+            {"ipc", required_argument, NULL, 'i'},
             {"lircd", required_argument, NULL, 'l'},
+            {"sqlite", required_argument, NULL, 's'},
             {"messenger", required_argument, NULL, 'm'},
             {"log", required_argument, NULL, 'L'},
             {"record", required_argument, NULL, 'R'},
@@ -111,7 +117,7 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
             case 'h':
                 return -1;
 
-            case 's':
+            case 'i':
                 if (*ipc_socket_name_count < IPC_SOCKET_COUNT)
                 {
                     ipc_socket_name[(*ipc_socket_name_count)++] = optarg;
@@ -123,6 +129,10 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 {
                     lircd_socket_name[(*lircd_socket_name_count)++] = optarg;
                 }
+                break;
+
+            case 's':
+                *sqlite_database_name = optarg;
                 break;
 
             case 'm':
@@ -143,7 +153,8 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
     }
 
     if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0 ||
-        *messenger_port_number == 0 || !*loudness_log_path || !*av_record_path)
+        !*sqlite_database_name || *messenger_port_number == 0 ||
+        !*loudness_log_path || !*av_record_path)
     {
         return -1;
     }
@@ -575,6 +586,196 @@ static int av_record_end(IpcContext *context, int index)
     return 0;
 }
 
+static int save_status_data(DatabaseContext *context, Status *status, int count)
+{
+    int ret;
+
+    DatabaseStatusData *data;
+    data = (DatabaseStatusData *)malloc(sizeof(DatabaseStatusData) * count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database status data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        data[i].index = i;
+        data[i].channel = status[i].channel;
+        data[i].recording = status[i].recording;
+    }
+
+    ret = database_set_status_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database status data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_status_data(DatabaseContext *context, Status *status, int count)
+{
+    int ret;
+
+    int cnt = 0;
+    ret = database_count_status_data(context, &cnt);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not count database status data\n");
+
+        return -1;
+    }
+
+    DatabaseStatusData *data;
+    data = (DatabaseStatusData *)malloc(sizeof(DatabaseStatusData) * cnt);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database status data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_status_data(context, data, cnt);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database status data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < cnt; i++)
+    {
+        if (data[i].index < count)
+        {
+            status[data[i].index].channel = data[i].channel;
+            status[data[i].index].recording = data[i].recording;
+        }
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int save_schedule_data(DatabaseContext *context, Schedule *schedule)
+{
+    int ret;
+
+    int count = 0;
+    if (schedule)
+    {
+        for (int i = 0; 0 <= schedule[i].index; i++)
+        {
+            count++;
+        }
+    }
+
+    DatabaseScheduleData *data;
+    data = (DatabaseScheduleData *)malloc(sizeof(DatabaseScheduleData) * count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database schedule data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        data[i].index = schedule[i].index;
+        data[i].start = schedule[i].start;
+        data[i].end = schedule[i].end;
+        data[i].channel = schedule[i].channel;
+    }
+
+    ret = database_set_schedule_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database schedule data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
+{
+    int ret;
+
+    int count = 0;
+    ret = database_count_schedule_data(context, &count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not count database schedule data\n");
+
+        return -1;
+    }
+
+    DatabaseScheduleData *data;
+    data = (DatabaseScheduleData *)malloc(sizeof(DatabaseScheduleData) * count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database schedule data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_schedule_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database schedule data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    Schedule *new_schedule = (Schedule *)malloc(sizeof(Schedule) * (count + 1));
+    if (!new_schedule)
+    {
+        fprintf(stderr, "Could not allocate new schedule buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        new_schedule[i].index = data[i].index;
+        new_schedule[i].start = data[i].start;
+        new_schedule[i].end = data[i].end;
+        new_schedule[i].channel = data[i].channel;
+    }
+
+    new_schedule[count].index = -1;
+
+    if (*schedule)
+    {
+        free(*schedule);
+    }
+
+    *schedule = new_schedule;
+
+    free(data);
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -809,13 +1010,14 @@ int main(int argc, char **argv)
     int ipc_socket_name_count = 0;
     char *lircd_socket_name[LIRCD_SOCKET_COUNT] = {NULL,};
     int lircd_socket_name_count = 0;
+    char *sqlite_database_name = NULL;
     int messenger_port_number = 0;
     char *loudness_log_path = NULL;
     char *av_record_path = NULL;
     ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
                      lircd_socket_name, &lircd_socket_name_count,
-                     &messenger_port_number, &loudness_log_path,
-                     &av_record_path);
+                     &sqlite_database_name, &messenger_port_number,
+                     &loudness_log_path, &av_record_path);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -863,12 +1065,33 @@ int main(int argc, char **argv)
         }
     }
 
+    DatabaseContext database_context;
+    ret = database_init(sqlite_database_name, &database_context);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not initialize database\n");
+
+        for (int i = 0; i < lircd_socket_name_count; i++)
+        {
+            irremote_uninit(&irremote_context[i]);
+        }
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            ipc_uninit(&ipc_context[i]);
+        }
+
+        return -1;
+    }
+
     MessengerContext messenger_context;
     ret = messenger_init(messenger_port_number, MESSENGER_BUFFER_SIZE,
                          &messenger_context);
     if (ret != 0)
     {
         fprintf(stderr, "Could not initialize messenger\n");
+
+        database_uninit(&database_context);
 
         for (int i = 0; i < lircd_socket_name_count; i++)
         {
@@ -890,6 +1113,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "Could not set stdin flag\n");
 
         messenger_uninit(&messenger_context);
+
+        database_uninit(&database_context);
 
         for (int i = 0; i < lircd_socket_name_count; i++)
         {
@@ -914,6 +1139,8 @@ int main(int argc, char **argv)
         fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
 
         messenger_uninit(&messenger_context);
+
+        database_uninit(&database_context);
 
         for (int i = 0; i < lircd_socket_name_count; i++)
         {
@@ -949,6 +1176,18 @@ int main(int argc, char **argv)
     int program_end_flag = 0;
 
     uint64_t start_usec = get_usec();
+
+    ret = load_status_data(&database_context, status, ipc_socket_name_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not load status data\n");
+    }
+
+    ret = load_schedule_data(&database_context, &schedule);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not load schedule data\n");
+    }
 
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
@@ -1128,6 +1367,13 @@ int main(int argc, char **argv)
                             }
                         }
                     }
+
+                    ret = save_status_data(&database_context, status,
+                                           ipc_socket_name_count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save status data\n");
+                    }
                     break;
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET:
@@ -1199,6 +1445,12 @@ int main(int argc, char **argv)
                             }
                             schedule[i].channel = data[i].channel;
                         }
+                    }
+
+                    ret = save_schedule_data(&database_context, schedule);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save schedule data\n");
                     }
                     break;
 
@@ -1422,6 +1674,13 @@ int main(int argc, char **argv)
 
                     status[i].recording = 1;
                 }
+
+                ret = save_status_data(&database_context, status,
+                                       ipc_socket_name_count);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not save status data\n");
+                }
             }
             else if (ret != 0 && status[i].recording)
             {
@@ -1434,6 +1693,13 @@ int main(int argc, char **argv)
                     printf("[%.3f] %d, AV record end\n", time, i);
 
                     status[i].recording = 0;
+                }
+
+                ret = save_status_data(&database_context, status,
+                                       ipc_socket_name_count);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not save status data\n");
                 }
             }
         }
@@ -1608,6 +1874,8 @@ int main(int argc, char **argv)
 
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+    database_uninit(&database_context);
 
     messenger_uninit(&messenger_context);
 

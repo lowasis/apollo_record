@@ -3,8 +3,8 @@ CC = $(CROSS_COMPILE)gcc
 CFLAGS = -MMD `xml2-config --cflags`
 LDFLAGS =
 INCS =
-LIBS = -llirc_client -lxml2
-OBJS = main.o ipc.o irremote.o messenger.o
+LIBS = -llirc_client -lxml2 -lsqlite3
+OBJS = main.o ipc.o irremote.o database.o messenger.o
 TARGET = apollo_controller
 
 .PHONY : all clean
