@@ -147,6 +147,13 @@ int main(int argc, char **argv)
 
                 printf("playback_list_request sent\n");
             }
+            else if (!strcmp(line_buf, "log_list_request"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><log_list_request ip=\"10.10.1.20\" number=\"5323\" />\n");
+                send(sockfd, buf, len, 0);
+
+                printf("log_list_request sent\n");
+            }
             else if (!strcmp(line_buf, "unknown"))
             {
                 len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><unknown ip=\"192.168.4.4\" number=\"5555\" />\n");
