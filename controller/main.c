@@ -39,6 +39,13 @@ typedef struct Schedule {
     int channel;
 } Schedule;
 
+typedef struct PlaybackList {
+    char name[128];
+    char start[24];
+    char end[24];
+    int channel;
+} PlaybackList;
+
 
 static void print_usage(char *name)
 {
@@ -525,7 +532,8 @@ static int loudness_log_end(IpcContext *context, int index)
 }
 
 static int av_record_start(IpcContext *context, int index, time_t start_time,
-                           time_t end_time, int channel, char *path)
+                           time_t end_time, int channel, char *path,
+                           PlaybackList *list)
 {
     int ret;
 
@@ -564,6 +572,11 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
 
         return -1;
     }
+
+    strncpy(list->name, &ipc_message.arg[strlen(path) + 1], sizeof(list->name));
+    strncpy(list->start, start, sizeof(list->start));
+    strncpy(list->end, end, sizeof(list->end));
+    list->channel = channel;
 
     return 0;
 }
@@ -770,6 +783,110 @@ static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
     }
 
     *schedule = new_schedule;
+
+    free(data);
+
+    return 0;
+}
+
+static int save_playback_list_data(DatabaseContext *context,
+                                   PlaybackList *list, int count)
+{
+    int ret;
+
+    DatabasePlaybackListData *data;
+    data = (DatabasePlaybackListData *)malloc(sizeof(DatabasePlaybackListData) *
+                                              count);
+    if (!data)
+    {
+        fprintf(stderr,
+                "Could not allocate database playback list data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        strncpy(data[i].name, list[i].name, sizeof(data[i].name));
+        strncpy(data[i].start, list[i].start, sizeof(data[i].start));
+        strncpy(data[i].end, list[i].end, sizeof(data[i].end));
+        data[i].channel = list[i].channel;
+    }
+
+    ret = database_set_playback_list_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database playback list data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_playback_list_data(DatabaseContext *context,
+                                   PlaybackList **list, int *count)
+{
+    int ret;
+
+    ret = database_count_playback_list_data(context, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not count database playback list data\n");
+
+        return -1;
+    }
+
+    DatabasePlaybackListData *data;
+    data = (DatabasePlaybackListData *)malloc(sizeof(DatabasePlaybackListData) *
+                                              *count);
+    if (!data)
+    {
+        fprintf(stderr,
+                "Could not allocate database playback list data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_playback_list_data(context, data, *count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database playback list data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    PlaybackList *new_list = (PlaybackList *)malloc(sizeof(PlaybackList) *
+                                                    *count);
+    if (!new_list)
+    {
+        fprintf(stderr, "Could not allocate new playback list buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < *count; i++)
+    {
+        strncpy(new_list[i].name, data[i].name, sizeof(data[i].name));
+        strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
+        strncpy(new_list[i].end, data[i].end, sizeof(data[i].end));
+        new_list[i].channel = data[i].channel;
+    }
+
+    if (*list)
+    {
+        free(*list);
+    }
+
+    *list = new_list;
 
     free(data);
 
@@ -1276,30 +1393,39 @@ int main(int argc, char **argv)
             switch (messenger_recv_message.type)
             {
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_START:
+                {
                     printf("[%.3f] Loudness send start\n", time);
 
                     loudness_send_flag = 1;
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_STOP:
+                {
                     printf("[%.3f] Loudness send stop\n", time);
 
                     loudness_send_flag = 0;
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_START:
+                {
                     printf("[%.3f] Status send start\n", time);
 
                     status_send_flag = 1;
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_STOP:
+                {
                     printf("[%.3f] Status send stop\n", time);
 
                     status_send_flag = 0;
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_CHANNEL_CHANGE:
+                {
                     printf("[%.3f] Channel change\n", time);
 
                     if (messenger_recv_message.data)
@@ -1375,8 +1501,10 @@ int main(int argc, char **argv)
                         fprintf(stderr, "Could not save status data\n");
                     }
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET:
+                {
                     printf("[%.3f] Loudness reset\n", time);
 
                     if (messenger_recv_message.data)
@@ -1399,8 +1527,10 @@ int main(int argc, char **argv)
                         }
                     }
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE:
+                {
                     printf("[%.3f] Schedule\n", time);
 
                     if (schedule)
@@ -1453,8 +1583,10 @@ int main(int argc, char **argv)
                         fprintf(stderr, "Could not save schedule data\n");
                     }
                     break;
+                }
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST:
+                {
                     printf("[%.3f] Schedule request\n", time);
 
                     int count = 0;
@@ -1520,9 +1652,70 @@ int main(int argc, char **argv)
                         free(data);
                     }
                     break;
+                }
+
+                case MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST:
+                {
+                    printf("[%.3f] Playback list request\n", time);
+
+                    PlaybackList *list = NULL;
+                    int count = 0;
+                    ret = load_playback_list_data(&database_context, &list,
+                                                  &count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not load playback list data\n");
+                        break;
+                    }
+
+                    MessengerPlaybackListData *data;
+                    data = (MessengerPlaybackListData *)malloc(
+                                             sizeof(MessengerPlaybackListData) *
+                                             count);
+                    if (!data)
+                    {
+                        fprintf(stderr, "Could not allocate messenger "
+                                        "playback list data buffer\n");
+                        break;
+                    }
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        strncpy(data[i].name, list[i].name,
+                                sizeof(data[i].name));
+                        strncpy(data[i].start, list[i].start,
+                                sizeof(data[i].start));
+                        strncpy(data[i].end, list[i].end, sizeof(data[i].end));
+                        data[i].channel = list[i].channel;
+                    }
+
+                    MessengerMessage messenger_message;
+                    messenger_message.type =
+                                           MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST;
+                    strncpy(messenger_message.ip, my_ip,
+                            sizeof(messenger_message.ip));
+                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.count = count;
+                    messenger_message.data = (void *)data;
+                    ret = messenger_send_message(&messenger_context,
+                                                 &messenger_message);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send messenger "
+                                        "playback list message\n");
+                    }
+
+                    if (data)
+                    {
+                        free(data);
+                    }
+                    break;
+                }
 
                 default:
+                {
                     break;
+                }
             }
 
             if (messenger_recv_message.data)
@@ -1661,10 +1854,11 @@ int main(int argc, char **argv)
                     printf("[%.3f] %d, Loudness log start\n", time, i);
                 }
 
+                PlaybackList list;
                 ret = av_record_start(ipc_context, i, current_schedule->start,
                                       current_schedule->end,
                                       current_schedule->channel,
-                                      av_record_path);
+                                      av_record_path, &list);
                 if (ret == 0)
                 {
                     float time;
@@ -1680,6 +1874,12 @@ int main(int argc, char **argv)
                 if (ret != 0)
                 {
                     fprintf(stderr, "Could not save status data\n");
+                }
+
+                ret = save_playback_list_data(&database_context, &list, 1);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not save playback list data\n");
                 }
             }
             else if (ret != 0 && status[i].recording)

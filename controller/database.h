@@ -21,6 +21,13 @@ typedef struct DatabaseScheduleData {
     int channel;
 } DatabaseScheduleData;
 
+typedef struct DatabasePlaybackListData {
+    char name[128];
+    char start[24];
+    char end[24];
+    int channel;
+} DatabasePlaybackListData;
+
 typedef struct DatabaseContext {
     sqlite3 *db;
 } DatabaseContext;
@@ -37,6 +44,11 @@ int database_set_schedule_data(DatabaseContext *context,
                                DatabaseScheduleData *data, int count);
 int database_get_schedule_data(DatabaseContext *context,
                                DatabaseScheduleData *data, int count);
+int database_count_playback_list_data(DatabaseContext *context, int *count);
+int database_set_playback_list_data(DatabaseContext *context,
+                                    DatabasePlaybackListData *data, int count);
+int database_get_playback_list_data(DatabaseContext *context,
+                                    DatabasePlaybackListData *data, int count);
 
 #ifdef __cplusplus
 }
