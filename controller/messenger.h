@@ -18,7 +18,9 @@ typedef enum {
     MESSENGER_MESSAGE_TYPE_SCHEDULE,
     MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST,
     MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST,
-    MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST
+    MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST,
+    MESSENGER_MESSAGE_TYPE_LOG_LIST,
+    MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST
 } MessengerMessageType;
 
 typedef struct MessengerMessage {
@@ -65,6 +67,12 @@ typedef struct MessengerPlaybackListData {
     char end[24];
     int channel;
 } MessengerPlaybackListData;
+
+typedef struct MessengerLogListData {
+    char name[128];
+    char start[24];
+    int channel;
+} MessengerLogListData;
 
 typedef struct MessengerContext {
     int fd;

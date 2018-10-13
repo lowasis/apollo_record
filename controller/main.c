@@ -46,6 +46,12 @@ typedef struct PlaybackList {
     int channel;
 } PlaybackList;
 
+typedef struct LogList {
+    char name[128];
+    char start[24];
+    int channel;
+} LogList;
+
 
 static void print_usage(char *name)
 {
@@ -484,7 +490,7 @@ static int loudness_reset(IpcContext *context, int index)
 }
 
 static int loudness_log_start(IpcContext *context, int index, int channel,
-                              char *path)
+                              char *path, LogList *list)
 {
     int ret;
 
@@ -509,6 +515,10 @@ static int loudness_log_start(IpcContext *context, int index, int channel,
 
         return -1;
     }
+
+    strncpy(list->name, &ipc_message.arg[strlen(path) + 1], sizeof(list->name));
+    strncpy(list->start, curr, sizeof(list->start));
+    list->channel = channel;
 
     return 0;
 }
@@ -878,6 +888,103 @@ static int load_playback_list_data(DatabaseContext *context,
         strncpy(new_list[i].name, data[i].name, sizeof(data[i].name));
         strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
         strncpy(new_list[i].end, data[i].end, sizeof(data[i].end));
+        new_list[i].channel = data[i].channel;
+    }
+
+    if (*list)
+    {
+        free(*list);
+    }
+
+    *list = new_list;
+
+    free(data);
+
+    return 0;
+}
+
+static int save_log_list_data(DatabaseContext *context, LogList *list,
+                              int count)
+{
+    int ret;
+
+    DatabaseLogListData *data;
+    data = (DatabaseLogListData *)malloc(sizeof(DatabaseLogListData) * count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database log list data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        strncpy(data[i].name, list[i].name, sizeof(data[i].name));
+        strncpy(data[i].start, list[i].start, sizeof(data[i].start));
+        data[i].channel = list[i].channel;
+    }
+
+    ret = database_set_log_list_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database log list data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_log_list_data(DatabaseContext *context, LogList **list,
+                              int *count)
+{
+    int ret;
+
+    ret = database_count_log_list_data(context, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not count database log list data\n");
+
+        return -1;
+    }
+
+    DatabaseLogListData *data;
+    data = (DatabaseLogListData *)malloc(sizeof(DatabaseLogListData) * *count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate database log list data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_log_list_data(context, data, *count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database log list data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    LogList *new_list = (LogList *)malloc(sizeof(LogList) * *count);
+    if (!new_list)
+    {
+        fprintf(stderr, "Could not allocate new log list buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < *count; i++)
+    {
+        strncpy(new_list[i].name, data[i].name, sizeof(data[i].name));
+        strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
         new_list[i].channel = data[i].channel;
     }
 
@@ -1308,14 +1415,21 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
+        LogList log_list;
         ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                 loudness_log_path);
+                                 loudness_log_path, &log_list);
         if (ret == 0)
         {
             float time;
             time = (float)(get_usec() - start_usec) / 1000000;
 
             printf("[%.3f] %d, Loudness log start\n", time, i);
+        }
+
+        ret = save_log_list_data(&database_context, &log_list, 1);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not save log list data\n");
         }
     }
 
@@ -1477,10 +1591,11 @@ int main(int argc, char **argv)
                                             "Could not reset loudness\n");
                                 }
 
+                                LogList log_list;
                                 ret = loudness_log_start(ipc_context,
                                                 data[i].index,
                                                 status[data[i].index].channel,
-                                                loudness_log_path);
+                                                loudness_log_path, &log_list);
                                 if (ret == 0)
                                 {
                                     float time;
@@ -1489,6 +1604,14 @@ int main(int argc, char **argv)
 
                                     printf("[%.3f] %d, Loudness log start\n",
                                            time, data[i].index);
+                                }
+
+                                ret = save_log_list_data(&database_context,
+                                                         &log_list, 1);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr, "Could not save "
+                                                    "log list data\n");
                                 }
                             }
                         }
@@ -1712,6 +1835,61 @@ int main(int argc, char **argv)
                     break;
                 }
 
+                case MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST:
+                {
+                    printf("[%.3f] Log list request\n", time);
+
+                    LogList *list = NULL;
+                    int count = 0;
+                    ret = load_log_list_data(&database_context, &list, &count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not load log list data\n");
+                        break;
+                    }
+
+                    MessengerLogListData *data;
+                    data = (MessengerLogListData *)malloc(
+                                                  sizeof(MessengerLogListData) *
+                                                  count);
+                    if (!data)
+                    {
+                        fprintf(stderr, "Could not allocate messenger "
+                                        "log list data buffer\n");
+                        break;
+                    }
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        strncpy(data[i].name, list[i].name,
+                                sizeof(data[i].name));
+                        strncpy(data[i].start, list[i].start,
+                                sizeof(data[i].start));
+                        data[i].channel = list[i].channel;
+                    }
+
+                    MessengerMessage messenger_message;
+                    messenger_message.type = MESSENGER_MESSAGE_TYPE_LOG_LIST;
+                    strncpy(messenger_message.ip, my_ip,
+                            sizeof(messenger_message.ip));
+                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.count = count;
+                    messenger_message.data = (void *)data;
+                    ret = messenger_send_message(&messenger_context,
+                                                 &messenger_message);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send messenger "
+                                        "log list message\n");
+                    }
+
+                    if (data)
+                    {
+                        free(data);
+                    }
+                    break;
+                }
+
                 default:
                 {
                     break;
@@ -1844,8 +2022,9 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Could not reset loudness\n");
                 }
 
+                LogList log_list;
                 ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                         loudness_log_path);
+                                         loudness_log_path, &log_list);
                 if (ret == 0)
                 {
                     float time;
@@ -1854,11 +2033,11 @@ int main(int argc, char **argv)
                     printf("[%.3f] %d, Loudness log start\n", time, i);
                 }
 
-                PlaybackList list;
+                PlaybackList playback_list;
                 ret = av_record_start(ipc_context, i, current_schedule->start,
                                       current_schedule->end,
                                       current_schedule->channel,
-                                      av_record_path, &list);
+                                      av_record_path, &playback_list);
                 if (ret == 0)
                 {
                     float time;
@@ -1876,10 +2055,17 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Could not save status data\n");
                 }
 
-                ret = save_playback_list_data(&database_context, &list, 1);
+                ret = save_playback_list_data(&database_context, &playback_list,
+                                              1);
                 if (ret != 0)
                 {
                     fprintf(stderr, "Could not save playback list data\n");
+                }
+
+                ret = save_log_list_data(&database_context, &log_list, 1);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not save log list data\n");
                 }
             }
             else if (ret != 0 && status[i].recording)

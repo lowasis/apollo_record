@@ -172,6 +172,50 @@ static int get_playback_list_data_callback(void *arg, int argc, char **argv,
     return 0;
 }
 
+static int get_log_list_data_callback(void *arg, int argc, char **argv,
+                                      char **col)
+{
+    if (!arg || !((void **)arg)[0] || !((void **)arg)[1] ||
+        !((void **)arg)[2] || !argv || !col)
+    {
+        return -1;
+    }
+
+    int *count = (int *)((void **)arg)[1];
+    int *i = (int *)((void **)arg)[2];
+
+    if (*i < *count)
+    {
+        DatabaseLogListData *data = (DatabaseLogListData *)((void **)arg)[0];
+        memset(&data[*i], 0, sizeof(DatabaseLogListData));
+
+        for (int j = 0; j < argc; j++)
+        {
+            if (!argv[j] || !col[j])
+            {
+                return -1;
+            }
+
+            if (strcmp(col[j], "NAME") == 0)
+            {
+                strncpy(data[*i].name, argv[j], sizeof(data->name));
+            }
+            else if (strcmp(col[j], "START") == 0)
+            {
+                strncpy(data[*i].start, argv[j], sizeof(data->start));
+            }
+            else if (strcmp(col[j], "CHANNEL") == 0)
+            {
+                data[*i].channel = strtol(argv[j], NULL, 10);
+            }
+        }
+
+        (*i)++;
+    }
+
+    return 0;
+}
+
 int database_init(char *name, DatabaseContext *context)
 {
     int ret;
@@ -233,6 +277,23 @@ int database_init(char *name, DatabaseContext *context)
     {
         fprintf(stderr,
                 "Could not execute sqlite3 create playback list table\n");
+
+        return -1;
+    }
+
+    DatabaseLogListData l;
+    snprintf(query, sizeof(query),
+             "CREATE TABLE IF NOT EXISTS LOG_LIST("
+             "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME        CHAR(%ld) NOT NULL, "
+             "START       CHAR(%ld) NOT NULL, "
+             "CHANNEL     INTEGER NOT NULL);",
+             sizeof(p.name), sizeof(p.start));
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 create log list table\n");
 
         return -1;
     }
@@ -503,6 +564,91 @@ int database_get_playback_list_data(DatabaseContext *context,
     {
         fprintf(stderr,
                 "Could not execute sqlite3 select playback list data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_count_log_list_data(DatabaseContext *context, int *count)
+{
+    int ret;
+
+    if (!context || !count)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query), "SELECT COUNT(*) FROM LOG_LIST;");
+
+    ret = sqlite3_exec(context->db, query, get_count_callback, (void *)count,
+                       NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr, "Could not execute sqlite3 count log list data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_set_log_list_data(DatabaseContext *context,
+                               DatabaseLogListData *data, int count)
+{
+    int ret;
+
+    if (!context || !data)
+    {
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        char query[512];
+        snprintf(query, sizeof(query),
+                 "INSERT OR REPLACE INTO LOG_LIST "
+                 "(NAME, START, CHANNEL) VALUES "
+                 "(\"%s\", \"%s\", %d);",
+                 data[i].name, data[i].start, data[i].channel);
+
+        ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+        if(ret != SQLITE_OK)
+        {
+            fprintf(stderr,
+                    "Could not execute sqlite3 insert log list data\n");
+
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int database_get_log_list_data(DatabaseContext *context,
+                               DatabaseLogListData *data, int count)
+{
+    int ret;
+
+    if (!context || !data)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "SELECT NAME, START, CHANNEL FROM LOG_LIST;");
+
+    int i = 0;
+    void *arg[] = {data, &count, &i};
+    ret = sqlite3_exec(context->db, query, get_log_list_data_callback,
+                       (void *)arg, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 select log list data\n");
 
         return -1;
     }
