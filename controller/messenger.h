@@ -20,7 +20,9 @@ typedef enum {
     MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST,
     MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST,
     MESSENGER_MESSAGE_TYPE_LOG_LIST,
-    MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST
+    MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST,
+    MESSENGER_MESSAGE_TYPE_USER_LOUDNESS,
+    MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST
 } MessengerMessageType;
 
 typedef struct MessengerMessage {
@@ -73,6 +75,24 @@ typedef struct MessengerLogListData {
     char start[24];
     int channel;
 } MessengerLogListData;
+
+typedef struct MessengerUserLoudnessSectionData {
+    char start[16];
+    char end[16];
+    double loudness;
+    char comment[128];
+} MessengerUserLoudnessSectionData;
+
+typedef struct MessengerUserLoudnessData {
+    char name[128];
+    char record_name[128];
+    int count;
+    MessengerUserLoudnessSectionData *data;
+} MessengerUserLoudnessData;
+
+typedef struct MessengerUserLoudnessRequestData {
+    char name[128];
+} MessengerUserLoudnessRequestData;
 
 typedef struct MessengerContext {
     int fd;

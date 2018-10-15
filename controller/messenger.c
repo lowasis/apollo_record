@@ -651,6 +651,169 @@ static int generate_log_list_xml(MessengerMessage *message,
     return 0;
 }
 
+static int generate_user_loudness_xml(MessengerMessage *message,
+                                      xmlTextWriter *writer)
+{
+    int ret;
+
+    if (!message || !writer)
+    {
+        return -1;
+    }
+
+    ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not start xml document\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterStartElement(writer, BAD_CAST("user_loudness"));
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not start xml element\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("ip"), "%s",
+                                            message->ip);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not write xml attribute\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("number"), "%d",
+                                            message->number);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not write xml attribute\n");
+
+        return -1;
+    }
+
+    MessengerUserLoudnessData *data;
+    data = (MessengerUserLoudnessData *)message->data;
+    for (int i = 0; i < message->count; i++)
+    {
+        ret = xmlTextWriterStartElement(writer, BAD_CAST("file"));
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not start xml element\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("name"), "%s",
+                                                data[i].name);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("record_name"),
+                                                "%s", data[i].record_name);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        MessengerUserLoudnessSectionData *section_data;
+        section_data = data[i].data;
+        for (int j = 0; j < data[i].count; j++)
+        {
+            ret = xmlTextWriterStartElement(writer, BAD_CAST("section"));
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not start xml element\n");
+
+                return -1;
+            }
+
+            ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("start"),
+                                                   "%s", section_data[j].start);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not write xml attribute\n");
+
+                return -1;
+            }
+
+            ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("end"),
+                                                    "%s", section_data[j].end);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not write xml attribute\n");
+
+                return -1;
+            }
+
+            ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                    BAD_CAST("loudness"),
+                                                    "%2.1f",
+                                                    section_data[j].loudness);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not write xml attribute\n");
+
+                return -1;
+            }
+
+            ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                    BAD_CAST("comment"),
+                                                    "%s",
+                                                    section_data[j].comment);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not write xml attribute\n");
+
+                return -1;
+            }
+
+            ret = xmlTextWriterEndElement(writer);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Could not end xml element\n");
+
+                return -1;
+            }
+        }
+
+        ret = xmlTextWriterEndElement(writer);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not end xml element\n");
+
+            return -1;
+        }
+    }
+
+    ret = xmlTextWriterEndElement(writer);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not end xml element\n");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterEndDocument(writer);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not end xml document\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int generate_xml(MessengerMessage *message, char **buffer, int *size)
 {
     int ret;
@@ -731,6 +894,14 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             if (ret != 0)
             {
                 fprintf(stderr, "Could not generate log list xml\n");
+            }
+            break;
+
+        case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS:
+            ret = generate_user_loudness_xml(message, writer);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not generate user loudness xml\n");
             }
             break;
 
@@ -1930,6 +2101,754 @@ static int parse_log_list_request_xml(xmlTextReader *reader,
     return 0;
 }
 
+static int parse_user_loudness_xml(xmlTextReader *reader,
+                                   MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("user_loudness")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_USER_LOUDNESS;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret != 1)
+        {
+            break;
+        }
+
+        xmlReaderTypes type;
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_ELEMENT)
+        {
+            break;
+        }
+
+        const xmlChar *str;
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("file")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        int size;
+        size = sizeof(MessengerUserLoudnessData) * (message->count + 1);
+        message->data = (void *)realloc(message->data, size);
+        if (!message->data)
+        {
+            fprintf(stderr, "Could not reallocate data buffer\n");
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        MessengerUserLoudnessData *data;
+        data = (MessengerUserLoudnessData *)message->data;
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("name"));
+        if (str)
+        {
+            strncpy(data[message->count].name, str,
+                    sizeof(data[message->count].name));
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("record_name"));
+        if (str)
+        {
+            strncpy(data[message->count].record_name, str,
+                    sizeof(data[message->count].record_name));
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        data[message->count].count = 0;
+        data[message->count].data = NULL;
+
+        while (1)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                break;
+            }
+
+            xmlReaderTypes type;
+            type = xmlTextReaderNodeType(reader);
+            if (type != XML_READER_TYPE_ELEMENT)
+            {
+                break;
+            }
+
+            const xmlChar *str;
+            str = xmlTextReaderName(reader);
+            if (!str)
+            {
+                fprintf(stderr, "Could not read xml element name\n");
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            if (xmlStrcmp(str, BAD_CAST("section")))
+            {
+                fprintf(stderr, "Could not find xml element\n");
+
+                xmlFree(BAD_CAST(str));
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            xmlFree(BAD_CAST(str));
+
+            int size;
+            size = sizeof(MessengerUserLoudnessSectionData) *
+                   (data[message->count].count + 1);
+            data[message->count].data = (void *)realloc(
+                                                      data[message->count].data,
+                                                      size);
+            if (!data[message->count].data)
+            {
+                fprintf(stderr, "Could not reallocate data buffer\n");
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            MessengerUserLoudnessSectionData *section_data;
+            section_data = (MessengerUserLoudnessSectionData *)
+                                                      data[message->count].data;
+
+            str = xmlTextReaderGetAttribute(reader, BAD_CAST("start"));
+            if (str)
+            {
+                size = sizeof(section_data[data[message->count].count].start);
+                strncpy(section_data[data[message->count].count].start, str,
+                        size);
+            }
+            else
+            {
+                fprintf(stderr, "Could not find xml attribute\n");
+
+                xmlFree(BAD_CAST(str));
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            xmlFree(BAD_CAST(str));
+
+            str = xmlTextReaderGetAttribute(reader, BAD_CAST("end"));
+            if (str)
+            {
+                size = sizeof(section_data[data[message->count].count].end);
+                strncpy(section_data[data[message->count].count].end, str,
+                        size);
+            }
+            else
+            {
+                fprintf(stderr, "Could not find xml attribute\n");
+
+                xmlFree(BAD_CAST(str));
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            xmlFree(BAD_CAST(str));
+
+            str = xmlTextReaderGetAttribute(reader, BAD_CAST("loudness"));
+            if (str)
+            {
+                section_data[data[message->count].count].loudness =
+                                                              strtod(str, NULL);
+            }
+            else
+            {
+                fprintf(stderr, "Could not find xml attribute\n");
+
+                xmlFree(BAD_CAST(str));
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            xmlFree(BAD_CAST(str));
+
+            str = xmlTextReaderGetAttribute(reader, BAD_CAST("comment"));
+            if (str)
+            {
+                size = sizeof(section_data[data[message->count].count].comment);
+                strncpy(section_data[data[message->count].count].comment, str,
+                        size);
+            }
+            else
+            {
+                fprintf(stderr, "Could not find xml attribute\n");
+
+                xmlFree(BAD_CAST(str));
+
+                for (int i = 0; i < message->count && message->data; i++)
+                {
+                    ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                    if (((MessengerUserLoudnessData *)message->data)[i].data)
+                    {
+                        free(((MessengerUserLoudnessData *)
+                                                        message->data)[i].data);
+                        ((MessengerUserLoudnessData *)message->data)[i].data =
+                                                                           NULL;
+                    }
+                }
+
+                message->count = 0;
+                if (message->data)
+                {
+                    free(message->data);
+                    message->data = NULL;
+                }
+
+                return -1;
+            }
+
+            xmlFree(BAD_CAST(str));
+
+            data[message->count].count++;
+        }
+
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_END_ELEMENT)
+        {
+            fprintf(stderr, "Wrong xml end element type\n");
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("file")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            for (int i = 0; i < message->count && message->data; i++)
+            {
+                ((MessengerUserLoudnessData *)message->data)[i].count = 0;
+                if (((MessengerUserLoudnessData *)message->data)[i].data)
+                {
+                    free(((MessengerUserLoudnessData *)message->data)[i].data);
+                    ((MessengerUserLoudnessData *)message->data)[i].data = NULL;
+                }
+            }
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        message->count++;
+    }
+
+    return 0;
+}
+
+static int parse_user_loudness_request_xml(xmlTextReader *reader,
+                                           MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("user_loudness_request")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret != 1)
+        {
+            break;
+        }
+
+        xmlReaderTypes type;
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_ELEMENT)
+        {
+            break;
+        }
+
+        const xmlChar *str;
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("file")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        int size;
+        size = sizeof(MessengerUserLoudnessRequestData) * (message->count + 1);
+        message->data = (void *)realloc(message->data, size);
+        if (!message->data)
+        {
+            fprintf(stderr, "Could not reallocate data buffer\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        MessengerUserLoudnessRequestData *data;
+        data = (MessengerUserLoudnessRequestData *)message->data;
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("name"));
+        if (str)
+        {
+            strncpy(data[message->count].name, str,
+                    sizeof(data[message->count].name));
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        message->count++;
+    }
+
+    return 0;
+}
+
 static int parse_xml(char *buffer, int size, MessengerMessage *message)
 {
     int ret;
@@ -2002,6 +2921,14 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     if (ret != 0)
     {
         ret = parse_log_list_request_xml(reader, message);
+    }
+    if (ret != 0)
+    {
+        ret = parse_user_loudness_xml(reader, message);
+    }
+    if (ret != 0)
+    {
+        ret = parse_user_loudness_request_xml(reader, message);
     }
 
     if (ret != 0)

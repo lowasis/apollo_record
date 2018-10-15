@@ -216,6 +216,90 @@ static int get_log_list_data_callback(void *arg, int argc, char **argv,
     return 0;
 }
 
+static int get_user_loudness_data_callback(void *arg, int argc, char **argv,
+                                           char **col)
+{
+    if (!arg || !argv || !col)
+    {
+        return -1;
+    }
+
+    DatabaseUserLoudnessData *data = (DatabaseUserLoudnessData *)arg;
+    memset(data, 0, sizeof(DatabaseUserLoudnessData));
+
+    for (int i = 0; i < argc; i++)
+    {
+        if (!argv[i] || !col[i])
+        {
+            return -1;
+        }
+
+        if (strcmp(col[i], "NAME") == 0)
+        {
+            strncpy(data->name, argv[i], sizeof(data->name));
+        }
+        else if (strcmp(col[i], "RECORD_NAME") == 0)
+        {
+            strncpy(data->record_name, argv[i], sizeof(data->record_name));
+        }
+    }
+
+    return 0;
+}
+
+static int get_user_loudness_section_data_callback(void *arg, int argc,
+                                                   char **argv, char **col)
+{
+    if (!arg || !((void **)arg)[0] || !((void **)arg)[1] ||
+        !((void **)arg)[2] || !argv || !col)
+    {
+        return -1;
+    }
+
+    int *count = (int *)((void **)arg)[1];
+    int *i = (int *)((void **)arg)[2];
+
+    if (*i < *count)
+    {
+        DatabaseUserLoudnessSectionData *data =
+                           (DatabaseUserLoudnessSectionData *)((void **)arg)[0];
+        memset(&data[*i], 0, sizeof(DatabaseUserLoudnessSectionData));
+
+        for (int j = 0; j < argc; j++)
+        {
+            if (!argv[j] || !col[j])
+            {
+                return -1;
+            }
+
+            if (strcmp(col[j], "NAME") == 0)
+            {
+                strncpy(data[*i].name, argv[j], sizeof(data->name));
+            }
+            else if (strcmp(col[j], "START") == 0)
+            {
+                strncpy(data[*i].start, argv[j], sizeof(data->start));
+            }
+            else if (strcmp(col[j], "END") == 0)
+            {
+                strncpy(data[*i].end, argv[j], sizeof(data->end));
+            }
+            else if (strcmp(col[j], "LOUDNESS") == 0)
+            {
+                data[*i].loudness = strtod(argv[j], NULL);
+            }
+            else if (strcmp(col[j], "COMMENT") == 0)
+            {
+                strncpy(data[*i].comment, argv[j], sizeof(data->comment));
+            }
+        }
+
+        (*i)++;
+    }
+
+    return 0;
+}
+
 int database_init(char *name, DatabaseContext *context)
 {
     int ret;
@@ -294,6 +378,42 @@ int database_init(char *name, DatabaseContext *context)
     {
         fprintf(stderr,
                 "Could not execute sqlite3 create log list table\n");
+
+        return -1;
+    }
+
+    DatabaseUserLoudnessData u;
+    snprintf(query, sizeof(query),
+             "CREATE TABLE IF NOT EXISTS USER_LOUDNESS("
+             "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME        CHAR(%ld) NOT NULL, "
+             "RECORD_NAME CHAR(%ld) NOT NULL);",
+             sizeof(u.name), sizeof(u.record_name));
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 create user loudness table\n");
+
+        return -1;
+    }
+
+    DatabaseUserLoudnessSectionData s;
+    snprintf(query, sizeof(query),
+             "CREATE TABLE IF NOT EXISTS USER_LOUDNESS_SECTION("
+             "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME        CHAR(%ld) NOT NULL, "
+             "START       CHAR(%ld) NOT NULL, "
+             "END         CHAR(%ld) NOT NULL, "
+             "LOUDNESS    REAL NOT NULL, "
+             "COMMENT     CHAR(%ld) NOT NULL);",
+             sizeof(s.name), sizeof(s.start), sizeof(s.end), sizeof(s.comment));
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 create "
+                "user loudness section table\n");
 
         return -1;
     }
@@ -652,6 +772,215 @@ int database_get_log_list_data(DatabaseContext *context,
     {
         fprintf(stderr,
                 "Could not execute sqlite3 select log list data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_count_user_loudness_data(DatabaseContext *context, char **name,
+                                      int count, int *counted_count)
+{
+    int ret;
+
+    if (!context || !name || !counted_count)
+    {
+        return -1;
+    }
+
+    *counted_count = 0;
+    for (int i = 0; i < count; i++)
+    {
+        char query[512];
+        snprintf(query, sizeof(query),
+                 "SELECT COUNT(*) FROM USER_LOUDNESS WHERE NAME = \"%s\";",
+                 name[i]);
+
+        int c = 0;
+        ret = sqlite3_exec(context->db, query, get_count_callback, (void *)&c,
+                           NULL);
+        if(ret != SQLITE_OK)
+        {
+            fprintf(stderr,
+                    "Could not execute sqlite3 count user loudness data\n");
+
+            return -1;
+        }
+
+        *counted_count += c;
+    }
+
+    return 0;
+}
+
+int database_set_user_loudness_data(DatabaseContext *context,
+                                    DatabaseUserLoudnessData *data, int count)
+{
+    int ret;
+
+    if (!context || !data)
+    {
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        char query[512];
+        snprintf(query, sizeof(query),
+                 "INSERT OR REPLACE INTO USER_LOUDNESS "
+                 "(ID, NAME, RECORD_NAME) VALUES "
+                 "((SELECT ID FROM USER_LOUDNESS WHERE NAME = \"%s\"), "
+                 "\"%s\", \"%s\");",
+                 data[i].name, data[i].name, data[i].record_name);
+
+        ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+        if(ret != SQLITE_OK)
+        {
+            fprintf(stderr,
+                    "Could not execute sqlite3 insert user loudness data\n");
+
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int database_get_user_loudness_data(DatabaseContext *context, char **name,
+                                    DatabaseUserLoudnessData *data, int count)
+{
+    int ret;
+
+    if (!context || !name || !data)
+    {
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        char query[512];
+        snprintf(query, sizeof(query),
+                 "SELECT NAME, RECORD_NAME "
+                 "FROM USER_LOUDNESS WHERE NAME = \"%s\";",
+                 name[i]);
+
+        ret = sqlite3_exec(context->db, query, get_user_loudness_data_callback,
+                           (void *)&data[i], NULL);
+        if(ret != SQLITE_OK)
+        {
+            fprintf(stderr,
+                    "Could not execute sqlite3 select user loudness data\n");
+
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int database_count_user_loudness_section_data(DatabaseContext *context,
+                                              char *name, int *count)
+{
+    int ret;
+
+    if (!context || !name || !count)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "SELECT COUNT(*) FROM USER_LOUDNESS_SECTION WHERE NAME = \"%s\";",
+             name);
+
+    ret = sqlite3_exec(context->db, query, get_count_callback, (void *)count,
+                       NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 count user loudness section data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_set_user_loudness_section_data(DatabaseContext *context,
+                                          DatabaseUserLoudnessSectionData *data,
+                                          int count)
+{
+    int ret;
+
+    if (!context || !data)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "DELETE FROM USER_LOUDNESS_SECTION WHERE NAME = \"%s\";",
+             data->name);
+
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr, "Could not execute sqlite3 delete "
+                        "user loudness section data\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        snprintf(query, sizeof(query),
+                 "INSERT OR REPLACE INTO USER_LOUDNESS_SECTION "
+                 "(NAME, START, END, LOUDNESS, COMMENT) VALUES "
+                 "(\"%s\", \"%s\", \"%s\", %f, \"%s\");",
+                 data[i].name, data[i].start, data[i].end, data[i].loudness,
+                 data[i].comment);
+
+        ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+        if(ret != SQLITE_OK)
+        {
+            fprintf(stderr, "Could not execute sqlite3 insert "
+                            "user loudness section data\n");
+
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int database_get_user_loudness_section_data(DatabaseContext *context,
+                                          char *name,
+                                          DatabaseUserLoudnessSectionData *data,
+                                          int count)
+{
+    int ret;
+
+    if (!context || !name || !data || !count)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "SELECT NAME, START, END, LOUDNESS, COMMENT "
+             "FROM USER_LOUDNESS_SECTION WHERE NAME = \"%s\";",
+             name);
+
+    int i = 0;
+    void *arg[] = {data, &count, &i};
+    ret = sqlite3_exec(context->db, query,
+                       get_user_loudness_section_data_callback, (void *)arg,
+                       NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr, "Could not execute sqlite3 select "
+                        "user loudness section data\n");
 
         return -1;
     }

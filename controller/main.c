@@ -52,6 +52,19 @@ typedef struct LogList {
     int channel;
 } LogList;
 
+typedef struct UserLoudness {
+    char name[128];
+    char record_name[128];
+} UserLoudness;
+
+typedef struct UserLoudnessSection {
+    char name[128];
+    char start[16];
+    char end[16];
+    double loudness;
+    char comment[128];
+} UserLoudnessSection;
+
 
 static void print_usage(char *name)
 {
@@ -1000,6 +1013,222 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     return 0;
 }
 
+static int save_user_loudness_data(DatabaseContext *context,
+                                   UserLoudness *loudness, int count)
+{
+    int ret;
+
+    DatabaseUserLoudnessData *data;
+    data = (DatabaseUserLoudnessData *)malloc(sizeof(DatabaseUserLoudnessData) *
+                                              count);
+    if (!data)
+    {
+        fprintf(stderr,
+                "Could not allocate database user loudness data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        strncpy(data[i].name, loudness[i].name, sizeof(data[i].name));
+        strncpy(data[i].record_name, loudness[i].record_name,
+                sizeof(data[i].record_name));
+    }
+
+    ret = database_set_user_loudness_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database user loudness data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_user_loudness_data(DatabaseContext *context, char **name,
+                                   UserLoudness **loudness, int count,
+                                   int *loaded_count)
+{
+    int ret;
+
+    ret = database_count_user_loudness_data(context, name, count, loaded_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not count database user loudness data\n");
+
+        return -1;
+    }
+
+    DatabaseUserLoudnessData *data;
+    data = (DatabaseUserLoudnessData *)malloc(sizeof(DatabaseUserLoudnessData) *
+                                              *loaded_count);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate "
+                        "database user loudness data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_user_loudness_data(context, name, data, *loaded_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database user loudness data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    UserLoudness *new_loudness = (UserLoudness *)malloc(sizeof(UserLoudness) *
+                                                        *loaded_count);
+    if (!new_loudness)
+    {
+        fprintf(stderr, "Could not allocate new user loudness buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < *loaded_count; i++)
+    {
+        strncpy(new_loudness[i].name, data[i].name,
+                sizeof(new_loudness[i].name));
+        strncpy(new_loudness[i].record_name, data[i].record_name,
+                sizeof(new_loudness[i].record_name));
+    }
+
+    if (*loudness)
+    {
+        free(*loudness);
+    }
+
+    *loudness = new_loudness;
+
+    free(data);
+
+    return 0;
+}
+
+static int save_user_loudness_section_data(DatabaseContext *context,
+                                           UserLoudnessSection *section,
+                                           int count)
+{
+    int ret;
+
+    int size = count * sizeof(DatabaseUserLoudnessSectionData);
+    DatabaseUserLoudnessSectionData *data;
+    data = (DatabaseUserLoudnessSectionData *)malloc(size);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate "
+                        "database user loudness section data buffer\n");
+
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        strncpy(data[i].name, section[i].name, sizeof(data[i].name));
+        strncpy(data[i].start, section[i].start, sizeof(data[i].start));
+        strncpy(data[i].end, section[i].end, sizeof(data[i].end));
+        data[i].loudness = section[i].loudness;
+        strncpy(data[i].comment, section[i].comment, sizeof(data[i].comment));
+    }
+
+    ret = database_set_user_loudness_section_data(context, data, count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database user loudness section data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static int load_user_loudness_section_data(DatabaseContext *context,
+                                           char *name,
+                                           UserLoudnessSection **section,
+                                           int *count)
+{
+    int ret;
+
+    ret = database_count_user_loudness_section_data(context, name, count);
+    if (ret != 0)
+    {
+        fprintf(stderr,
+                "Could not count database user loudness section data\n");
+
+        return -1;
+    }
+
+    int size = *count * sizeof(DatabaseUserLoudnessSectionData);
+    DatabaseUserLoudnessSectionData *data;
+    data = (DatabaseUserLoudnessSectionData *)malloc(size);
+    if (!data)
+    {
+        fprintf(stderr, "Could not allocate "
+                        "database user loudness section data buffer\n");
+
+        return -1;
+    }
+
+    ret = database_get_user_loudness_section_data(context, name, data, *count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not get database user loudness section data\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    size = sizeof(UserLoudnessSection) * *count;
+    UserLoudnessSection *new_section = (UserLoudnessSection *)malloc(size);
+    if (!new_section)
+    {
+        fprintf(stderr,
+                "Could not allocate new user loudness section buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    for (int i = 0; i < *count; i++)
+    {
+        strncpy(new_section[i].name, data[i].name, sizeof(data[i].name));
+        strncpy(new_section[i].start, data[i].start, sizeof(data[i].start));
+        strncpy(new_section[i].end, data[i].end, sizeof(data[i].end));
+        new_section[i].loudness = data[i].loudness;
+        strncpy(new_section[i].comment, data[i].comment,
+                sizeof(data[i].comment));
+    }
+
+    if (*section)
+    {
+        free(*section);
+    }
+
+    *section = new_section;
+
+    free(data);
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -1906,6 +2135,252 @@ int main(int argc, char **argv)
                     if (data)
                     {
                         free(data);
+                    }
+                    break;
+                }
+                case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS:
+                {
+                    printf("[%.3f] User loudness\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        int count = messenger_recv_message.count;
+                        UserLoudness *user_loudness = NULL;
+                        user_loudness = (UserLoudness *)malloc(count *
+                                                          sizeof(UserLoudness));
+                        if (!user_loudness)
+                        {
+                            fprintf(stderr, "Could not allocate "
+                                            "user loudness buffer\n");
+                            break;
+                        }
+
+                        MessengerUserLoudnessData *data;
+                        data = (MessengerUserLoudnessData *)
+                                                    messenger_recv_message.data;
+                        int i;
+                        for (i = 0; i < count; i++)
+                        {
+                            strncpy(user_loudness[i].name, data[i].name,
+                                    sizeof(user_loudness[i].name));
+                            strncpy(user_loudness[i].record_name,
+                                    data[i].record_name,
+                                    sizeof(user_loudness[i].record_name));
+
+                            if (data[i].data)
+                            {
+                                int section_count = data[i].count;
+                                UserLoudnessSection *section = NULL;
+                                section = (UserLoudnessSection *)malloc(
+                                                   section_count *
+                                                   sizeof(UserLoudnessSection));
+                                if (!section)
+                                {
+                                    fprintf(stderr, "Could not allocate "
+                                            "user loudness section buffer\n");
+                                    break;
+                                }
+
+                                MessengerUserLoudnessSectionData *section_data;
+                                section_data = data[i].data;
+                                for (int j = 0; j < section_count; j++)
+                                {
+                                    strncpy(section[j].name,
+                                            data[i].name,
+                                            sizeof(section[j].name));
+                                    strncpy(section[j].start,
+                                            section_data[j].start,
+                                            sizeof(section[j].start));
+                                    strncpy(section[j].end,
+                                            section_data[j].end,
+                                            sizeof(section[j].end));
+                                    section[j].loudness =
+                                                      section_data[j].loudness;
+                                    strncpy(section[j].comment,
+                                            section_data[j].comment,
+                                            sizeof(section[j].comment));
+                                }
+
+                                free(data[i].data);
+
+                                ret = save_user_loudness_section_data(
+                                                              &database_context,
+                                                              section,
+                                                              section_count);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr, "Could not save "
+                                            "user loudness section data\n");
+                                }
+
+                                free(section);
+                            }
+                        }
+
+                        if (i == count)
+                        {
+                            ret = save_user_loudness_data(&database_context,
+                                                          user_loudness, count);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr,
+                                        "Could not save user loudness data\n");
+                            }
+                        }
+
+                        free(user_loudness);
+                    }
+                    break;
+                }
+
+                case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST:
+                {
+                    printf("[%.3f] User loudness request\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        char **name;
+                        name = (char **)malloc(messenger_recv_message.count *
+                                               sizeof(char *));
+                        if (!name)
+                        {
+                            fprintf(stderr, "Could not allocate name buffer\n");
+                            break;
+                        }
+
+                        MessengerUserLoudnessRequestData *request_data;
+                        request_data = (MessengerUserLoudnessRequestData *)
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            name[i] = request_data[i].name;
+                        }
+
+                        UserLoudness *user_loudness = NULL;
+                        int count = 0;
+                        ret = load_user_loudness_data(&database_context, name,
+                                                   &user_loudness,
+                                                   messenger_recv_message.count,
+                                                   &count);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr,
+                                    "Could not load user loudness data\n");
+
+                            free(name);
+                            break;
+                        }
+
+                        free(name);
+
+                        int size = count * sizeof(MessengerUserLoudnessData);
+                        MessengerUserLoudnessData *data;
+                        data = (MessengerUserLoudnessData *)malloc(size);
+                        if (!data)
+                        {
+                            fprintf(stderr, "Could not allocate messenger "
+                                            "user loudness data buffer\n");
+
+                            if (user_loudness)
+                            {
+                                free(user_loudness);
+                            }
+                            break;
+                        }
+
+                        int i;
+                        for (i = 0; i < count; i++)
+                        {
+                            UserLoudnessSection *section = NULL;
+                            int section_count = 0;
+                            ret = load_user_loudness_section_data(
+                                                          &database_context,
+                                                          user_loudness[i].name,
+                                                          &section,
+                                                          &section_count);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not load "
+                                                "user loudness section data\n");
+                                break;
+                            }
+
+                            size = section_count *
+                                   sizeof(MessengerUserLoudnessSectionData);
+                            MessengerUserLoudnessSectionData *section_data;
+                            section_data = (MessengerUserLoudnessSectionData *)
+                                           malloc(size);
+                            if (!section_data)
+                            {
+                                fprintf(stderr, "Could not allocate messenger "
+                                        "user loudness section data buffer\n");
+
+                                if (section)
+                                {
+                                    free(section);
+                                }
+                                break;
+                            }
+
+                            for (int j = 0; j < section_count; j++)
+                            {
+                                strncpy(section_data[j].start, section[j].start,
+                                        sizeof(section_data[j].start));
+                                strncpy(section_data[j].end, section[j].end,
+                                        sizeof(section_data[j].end));
+                                section_data[j].loudness = section[j].loudness;
+                                strncpy(section_data[j].comment,
+                                        section[j].comment,
+                                        sizeof(section_data[j].comment));
+                            }
+
+                            if (section)
+                            {
+                                free(section);
+                            }
+
+                            strncpy(data[i].name, user_loudness[i].name,
+                                    sizeof(data[i].name));
+                            strncpy(data[i].record_name,
+                                    user_loudness[i].record_name,
+                                    sizeof(data[i].record_name));
+                            data[i].count = section_count;
+                            data[i].data = section_data;
+                        }
+
+                        if (user_loudness)
+                        {
+                            free(user_loudness);
+                        }
+
+                        if (i == count)
+                        {
+                            MessengerMessage messenger_message;
+                            messenger_message.type =
+                                           MESSENGER_MESSAGE_TYPE_USER_LOUDNESS;
+                            strncpy(messenger_message.ip, my_ip,
+                                    sizeof(messenger_message.ip));
+                            messenger_message.number = rand() & 0xffff;
+                            messenger_message.count = count;
+                            messenger_message.data = (void *)data;
+                            ret = messenger_send_message(&messenger_context,
+                                                         &messenger_message);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not send messenger "
+                                                "user loudness message\n");
+                            }
+                        }
+
+                        for (int j = 0; j < i; j++)
+                        {
+                            free(data[j].data);
+                        }
+
+                        if (data)
+                        {
+                            free(data);
+                        }
                     }
                     break;
                 }
