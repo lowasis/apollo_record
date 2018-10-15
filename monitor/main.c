@@ -400,8 +400,10 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_AV_STREAM_START:
                     if (av_stream_flag)
                     {
-                        printf("[%.3f] Already AV stream started\n", time);
-                        break;
+                        streamer_uninit(&streamer_context);
+
+                        printf("[%.3f] AV stream end (%s %d)\n", time,
+                               av_stream_ip_name, av_stream_port_number);
                     }
 
                     char *name = strtok(ipc_message.arg, " ");
