@@ -525,9 +525,11 @@ int database_set_playback_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO PLAYBACK_LIST "
-                 "(NAME, START, END, CHANNEL) VALUES "
-                 "(\"%s\", \"%s\", \"%s\", %d);",
-                 data[i].name, data[i].start, data[i].end, data[i].channel);
+                 "(ID, NAME, START, END, CHANNEL) VALUES "
+                 "((SELECT ID FROM PLAYBACK_LIST WHERE NAME = \"%s\"), "
+                 "\"%s\", \"%s\", \"%s\", %d);",
+                 data[i].name, data[i].name, data[i].start, data[i].end,
+                 data[i].channel);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -610,9 +612,10 @@ int database_set_log_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO LOG_LIST "
-                 "(NAME, START, CHANNEL) VALUES "
-                 "(\"%s\", \"%s\", %d);",
-                 data[i].name, data[i].start, data[i].channel);
+                 "(ID, NAME, START, CHANNEL) VALUES "
+                 "((SELECT ID FROM LOG_LIST WHERE NAME = \"%s\"), "
+                 "\"%s\", \"%s\", %d);",
+                 data[i].name, data[i].name, data[i].start, data[i].channel);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
