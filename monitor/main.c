@@ -351,8 +351,10 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_LOUDNESS_LOG_START:
                     if (loudness_log_flag)
                     {
-                        printf("[%.3f] Already loudness log started\n", time);
-                        break;
+                        logger_uninit(&logger_context);
+
+                        printf("[%.3f] Loudness log end (%s)\n", time,
+                               loudness_log_name);
                     }
 
                     if (strlen(ipc_message.arg) == 0)
