@@ -1799,6 +1799,11 @@ int main(int argc, char **argv)
                     {
                         fprintf(stderr, "Could not allocate messenger "
                                         "playback list data buffer\n");
+
+                        if (list)
+                        {
+                            free(list);
+                        }
                         break;
                     }
 
@@ -1810,6 +1815,11 @@ int main(int argc, char **argv)
                                 sizeof(data[i].start));
                         strncpy(data[i].end, list[i].end, sizeof(data[i].end));
                         data[i].channel = list[i].channel;
+                    }
+
+                    if (list)
+                    {
+                        free(list);
                     }
 
                     MessengerMessage messenger_message;
@@ -1856,6 +1866,11 @@ int main(int argc, char **argv)
                     {
                         fprintf(stderr, "Could not allocate messenger "
                                         "log list data buffer\n");
+
+                        if (list)
+                        {
+                            free(list);
+                        }
                         break;
                     }
 
@@ -1866,6 +1881,11 @@ int main(int argc, char **argv)
                         strncpy(data[i].start, list[i].start,
                                 sizeof(data[i].start));
                         data[i].channel = list[i].channel;
+                    }
+
+                    if (list)
+                    {
+                        free(list);
                     }
 
                     MessengerMessage messenger_message;
