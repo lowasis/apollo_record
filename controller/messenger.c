@@ -3125,6 +3125,14 @@ int messenger_receive_message(MessengerContext *context,
                 context->client_fd = -1;
             }
         }
+        else if (ret == 0)
+        {
+            fprintf(stderr, "Could not receive message\n");
+
+            close(context->client_fd);
+
+            context->client_fd = -1;
+        }
         else
         {
             context->rx_buffer_index += ret;
