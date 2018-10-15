@@ -154,6 +154,29 @@ int main(int argc, char **argv)
 
                 printf("log_list_request sent\n");
             }
+            else if (!strcmp(line_buf, "user_loudness"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><user_loudness ip=\"10.10.1.10\" number=\"65432\">"
+                                                 "<file name=\"CH29_tvN_20180917_123456_윤식당_20180917_123501_1.ul\" record_name=\"CH29_tvN_20180917_123456_윤식당_20180917_123501.ts\">"
+                                                 "<section start=\"00:12:22\" end=\"00:13:22\" loudness=\"-23.1\" comment=\"첫광고전\" />"
+                                                 "<section start=\"00:15:11\" end=\"00:20:37\" loudness=\"-23.9\" comment=\"첫광고후~둘째광고전\" /></file>"
+                                                 "<file name=\"temp_9.ul\" record_name=\"temp.ts\">"
+                                                 "<section start=\"00:00:00\" end=\"00:05:00\" loudness=\"-55.0\" comment=\"AAAAAAA\" />"
+                                                 "<section start=\"00:05:00\" end=\"00:10:00\" loudness=\"-44.0\" comment=\"BBB\" />"
+                                                 "<section start=\"00:10:00\" end=\"00:15:00\" loudness=\"-33.0\" comment=\"CCCCCCCCCCCCCCC\" /></file>"
+                                                 "</user_loudness>");
+                send(sockfd, buf, len, 0);
+
+                printf("user_loudness sent\n");
+            }
+            else if (!strcmp(line_buf, "user_loudness_request"))
+            {
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><user_loudness_request ip=\"10.10.1.20\" number=\"3572\">"
+                                                 "<file name=\"CH29_tvN_20180917_123456_윤식당_20180917_123501_1.ul\" /><file name=\"temp_9.ul\" /><file name=\"temp_8.ul\" /></user_loudness_request>");
+                send(sockfd, buf, len, 0);
+
+                printf("user_loudness_request sent\n");
+            }
             else if (!strcmp(line_buf, "unknown"))
             {
                 len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><unknown ip=\"192.168.4.4\" number=\"5555\" />\n");
