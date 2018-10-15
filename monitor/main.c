@@ -457,8 +457,10 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_AV_RECORD_START:
                     if (av_record_flag)
                     {
-                        printf("[%.3f] Already AV record started\n", time);
-                        break;
+                        fclose(av_record_fp);
+
+                        printf("[%.3f] AV record end (%s)\n", time,
+                               av_record_name);
                     }
 
                     if (strlen(ipc_message.arg) == 0)
