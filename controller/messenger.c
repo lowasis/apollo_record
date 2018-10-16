@@ -1020,6 +1020,361 @@ static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
     return 0;
 }
 
+static int parse_stream_start_xml(xmlTextReader *reader,
+                                  MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("stream_start")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_STREAM_START;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret != 1)
+        {
+            break;
+        }
+
+        xmlReaderTypes type;
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_ELEMENT)
+        {
+            break;
+        }
+
+        const xmlChar *str;
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("card")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        int size;
+        size = sizeof(MessengerStreamStartData) * (message->count + 1);
+        message->data = (void *)realloc(message->data, size);
+        if (!message->data)
+        {
+            fprintf(stderr, "Could not reallocate data buffer\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        MessengerStreamStartData *data;
+        data = (MessengerStreamStartData *)message->data;
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("index"));
+        if (str)
+        {
+            data[message->count].index = strtol(str, NULL, 10);
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("port"));
+        if (str)
+        {
+            data[message->count].port = strtol(str, NULL, 10);
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        message->count++;
+    }
+
+    return 0;
+}
+
+static int parse_stream_stop_xml(xmlTextReader *reader,
+                                 MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    type = xmlTextReaderNodeType(reader);
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        fprintf(stderr, "Could not get xml element\n");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        fprintf(stderr, "Could not read xml element name\n");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("stream_stop")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_STREAM_STOP;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret != 1)
+        {
+            break;
+        }
+
+        xmlReaderTypes type;
+        type = xmlTextReaderNodeType(reader);
+        if (type != XML_READER_TYPE_ELEMENT)
+        {
+            break;
+        }
+
+        const xmlChar *str;
+        str = xmlTextReaderName(reader);
+        if (!str)
+        {
+            fprintf(stderr, "Could not read xml element name\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        if (xmlStrcmp(str, BAD_CAST("card")))
+        {
+            fprintf(stderr, "Could not find xml element\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        int size;
+        size = sizeof(MessengerStreamStopData) * (message->count + 1);
+        message->data = (void *)realloc(message->data, size);
+        if (!message->data)
+        {
+            fprintf(stderr, "Could not reallocate data buffer\n");
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        MessengerStreamStopData *data;
+        data = (MessengerStreamStopData *)message->data;
+
+        str = xmlTextReaderGetAttribute(reader, BAD_CAST("index"));
+        if (str)
+        {
+            data[message->count].index = strtol(str, NULL, 10);
+        }
+        else
+        {
+            fprintf(stderr, "Could not find xml attribute\n");
+
+            xmlFree(BAD_CAST(str));
+
+            message->count = 0;
+            if (message->data)
+            {
+                free(message->data);
+                message->data = NULL;
+            }
+
+            return -1;
+        }
+
+        xmlFree(BAD_CAST(str));
+
+        message->count++;
+    }
+
+    return 0;
+}
+
 static int parse_loudness_start_xml(xmlTextReader *reader,
                                     MessengerMessage *message)
 {
@@ -2882,6 +3237,14 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     }
 
     ret = parse_ack_xml(reader, message);
+    if (ret != 0)
+    {
+        ret = parse_stream_start_xml(reader, message);
+    }
+    if (ret != 0)
+    {
+        ret = parse_stream_stop_xml(reader, message);
+    }
     if (ret != 0)
     {
         ret = parse_loudness_start_xml(reader, message);

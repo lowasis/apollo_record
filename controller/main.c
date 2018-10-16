@@ -622,6 +622,42 @@ static int av_record_end(IpcContext *context, int index)
     return 0;
 }
 
+static int av_stream_start(IpcContext *context, int index, char *ip, int port)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AV_STREAM_START;
+    snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s %d", ip, port);
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static int av_stream_end(IpcContext *context, int index)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AV_STREAM_END;
+    ipc_message.arg[0] = 0;
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send ipc message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int save_status_data(DatabaseContext *context, Status *status, int count)
 {
     int ret;
@@ -1735,6 +1771,60 @@ int main(int argc, char **argv)
 
             switch (messenger_recv_message.type)
             {
+                case MESSENGER_MESSAGE_TYPE_STREAM_START:
+                {
+                    printf("[%.3f] AV stream start\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        MessengerStreamStartData *data;
+                        data = (MessengerStreamStartData *)
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            if (data[i].index < ipc_socket_name_count)
+                            {
+                                ret = av_stream_start(ipc_context,
+                                                      data[i].index,
+                                                      messenger_recv_message.ip,
+                                                      data[i].port);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr,
+                                            "Could not start AV stream\n");
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                case MESSENGER_MESSAGE_TYPE_STREAM_STOP:
+                {
+                    printf("[%.3f] AV stream stop\n", time);
+
+                    if (messenger_recv_message.data)
+                    {
+                        MessengerStreamStopData *data;
+                        data = (MessengerStreamStopData *)
+                                                    messenger_recv_message.data;
+                        for (int i = 0; i < messenger_recv_message.count; i++)
+                        {
+                            if (data[i].index < ipc_socket_name_count)
+                            {
+                                ret = av_stream_end(ipc_context,
+                                                    data[i].index);
+                                if (ret != 0)
+                                {
+                                    fprintf(stderr,
+                                            "Could not stop AV stream\n");
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_START:
                 {
                     printf("[%.3f] Loudness send start\n", time);

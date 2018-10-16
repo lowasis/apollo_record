@@ -7,6 +7,8 @@ extern "C" {
 
 typedef enum {
     MESSENGER_MESSAGE_TYPE_ACK = 0,
+    MESSENGER_MESSAGE_TYPE_STREAM_START,
+    MESSENGER_MESSAGE_TYPE_STREAM_STOP,
     MESSENGER_MESSAGE_TYPE_LOUDNESS,
     MESSENGER_MESSAGE_TYPE_STATUS,
     MESSENGER_MESSAGE_TYPE_LOUDNESS_START,
@@ -32,6 +34,15 @@ typedef struct MessengerMessage {
     int count;
     void *data;
 } MessengerMessage;
+
+typedef struct MessengerStreamStartData {
+    int index;
+    int port;
+} MessengerStreamStartData;
+
+typedef struct MessengerStreamStopData {
+    int index;
+} MessengerStreamStopData;
 
 typedef struct MessengerLoudnessData {
     int index;
