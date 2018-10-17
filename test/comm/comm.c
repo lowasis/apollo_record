@@ -83,16 +83,16 @@ int main(int argc, char **argv)
         {
             if (!strcmp(line_buf, "stream_start"))
             {
-                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><stream_start ip=\"10.10.2.22\" number=\"235\"><card index=\"0\" port=\"3401\" /><card index=\"1\" port=\"3402\" />"
-                                                 "<card index=\"2\" port=\"3403\" /><card index=\"3\" port=\"3404\" /><card index=\"4\" port=\"3405\" /></stream_start>\n");
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- comment -->\n<stream_start ip=\"10.10.2.22\" number=\"235\">\n   <card index=\"0\" port=\"3401\" />\n   <card index=\"1\" port=\"3402\" />\n"
+                                                 "   <card index=\"2\" port=\"3403\" />\n   <card index=\"3\" port=\"3404\" />\n   <card index=\"4\" port=\"3405\" />\n</stream_start>\n");
                 send(sockfd, buf, len, 0);
 
                 printf("stream_start sent\n");
             }
             else if (!strcmp(line_buf, "stream_stop"))
             {
-                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><stream_stop ip=\"10.10.2.22\" number=\"235\"><card index=\"0\" /><card index=\"1\" />"
-                                                 "<card index=\"2\" /><card index=\"3\" /><card index=\"4\" /></stream_stop>\n");
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- comment -->\n<stream_stop ip=\"10.10.2.22\" number=\"235\">\n   <card index=\"0\" />\n   <card index=\"1\" />\n"
+                                                 "   <card index=\"2\" />\n   <card index=\"3\" />\n   <card index=\"4\" />\n<!-- comment -->\n</stream_stop>\n");
                 send(sockfd, buf, len, 0);
 
                 printf("stream_stop sent\n");
@@ -134,10 +134,10 @@ int main(int argc, char **argv)
             }
             else if (!strcmp(line_buf, "loudness_reset"))
             {
-                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><loudness_reset ip=\"10.10.1.20\" number=\"8888\"><card index=\"1\" /><card index=\"4\" /></loudness_reset>\n");
+                len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><loudness_reset ip=\"10.10.1.20\" number=\"8888\">\n\n\n    <!-- 올바른 xml/xhtml 주석 --><card index=\"1\" /><card index=\"4\" /></loudness_reset>\n");
                 send(sockfd, buf, len, 0);
 
-                printf("loudness_reset sent\n");
+                printf("loudness_reset sent %s \n", buf);
             }
             else if (!strcmp(line_buf, "schedule"))
             {
