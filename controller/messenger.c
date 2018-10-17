@@ -3479,8 +3479,10 @@ int messenger_receive_message(MessengerContext *context,
                    MSG_NOSIGNAL | MSG_DONTWAIT);
         if (ret == -1)
         {
-            if (errno == EPIPE)
+	   if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
+            	//pass  
+            } else {
                 fprintf(stderr, "Could not receive message\n");
 
                 close(context->client_fd);
