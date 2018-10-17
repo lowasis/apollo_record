@@ -954,13 +954,35 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
 
 static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
 {
+    int ret;
+
     if (!reader || !message)
     {
         return -1;
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1031,7 +1053,27 @@ static int parse_stream_start_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1097,7 +1139,27 @@ static int parse_stream_start_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -1220,7 +1282,27 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1286,7 +1368,27 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -1378,13 +1480,35 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
 static int parse_loudness_start_xml(xmlTextReader *reader,
                                     MessengerMessage *message)
 {
+    int ret;
+
     if (!reader || !message)
     {
         return -1;
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1447,13 +1571,35 @@ static int parse_loudness_start_xml(xmlTextReader *reader,
 static int parse_loudness_stop_xml(xmlTextReader *reader,
                                    MessengerMessage *message)
 {
+    int ret;
+
     if (!reader || !message)
     {
         return -1;
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1516,13 +1662,35 @@ static int parse_loudness_stop_xml(xmlTextReader *reader,
 static int parse_status_start_xml(xmlTextReader *reader,
                                   MessengerMessage *message)
 {
+    int ret;
+
     if (!reader || !message)
     {
         return -1;
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1585,13 +1753,35 @@ static int parse_status_start_xml(xmlTextReader *reader,
 static int parse_status_stop_xml(xmlTextReader *reader,
                                  MessengerMessage *message)
 {
+    int ret;
+
     if (!reader || !message)
     {
         return -1;
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1662,7 +1852,27 @@ static int parse_channel_change_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1728,7 +1938,27 @@ static int parse_channel_change_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -1851,7 +2081,27 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -1917,7 +2167,27 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -2017,7 +2287,27 @@ static int parse_schedule_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -2083,7 +2373,27 @@ static int parse_schedule_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -2254,7 +2564,27 @@ static int parse_schedule_request_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -2325,7 +2655,27 @@ static int parse_playback_list_request_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -2396,7 +2746,27 @@ static int parse_log_list_request_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -2467,7 +2837,27 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -2533,7 +2923,27 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
@@ -2703,7 +3113,27 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             }
 
             xmlReaderTypes type;
-            type = xmlTextReaderNodeType(reader);
+            while (1)
+            {
+                type = xmlTextReaderNodeType(reader);
+                if (type == XML_READER_TYPE_COMMENT ||
+                    type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+                {
+                    ret = xmlTextReaderRead(reader);
+                    if (ret != 1)
+                    {
+                        fprintf(stderr, "Could not read xml\n");
+
+                        break;
+                    }
+
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
+            }
             if (type != XML_READER_TYPE_ELEMENT)
             {
                 break;
@@ -2953,7 +3383,27 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             data[message->count].count++;
         }
 
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_END_ELEMENT)
         {
             fprintf(stderr, "Wrong xml end element type\n");
@@ -3048,7 +3498,27 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
     }
 
     xmlReaderTypes type;
-    type = xmlTextReaderNodeType(reader);
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                fprintf(stderr, "Could not read xml\n");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
     if (type != XML_READER_TYPE_ELEMENT)
     {
         fprintf(stderr, "Could not get xml element\n");
@@ -3114,7 +3584,27 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
         }
 
         xmlReaderTypes type;
-        type = xmlTextReaderNodeType(reader);
+        while (1)
+        {
+            type = xmlTextReaderNodeType(reader);
+            if (type == XML_READER_TYPE_COMMENT ||
+                type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+            {
+                ret = xmlTextReaderRead(reader);
+                if (ret != 1)
+                {
+                    fprintf(stderr, "Could not read xml\n");
+
+                    break;
+                }
+
+                continue;
+            }
+            else
+            {
+                break;
+            }
+        }
         if (type != XML_READER_TYPE_ELEMENT)
         {
             break;
