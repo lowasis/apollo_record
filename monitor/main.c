@@ -329,6 +329,8 @@ int main(int argc, char **argv)
     char av_record_name[FILE_NAME_LENGTH];
     int av_record_flag = 0;
 
+    AnalyzerContext av_record_analyzer_context;
+
     int program_end_flag = 0;
 
     uint64_t start_usec = get_usec();
@@ -457,10 +459,37 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_AV_RECORD_START:
                     if (av_record_flag)
                     {
+                        double momentary, shortterm, integrated;
+                        ret = analyzer_get_loudness(&av_record_analyzer_context,
+                                                    &momentary, &shortterm,
+                                                    &integrated);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not get av record loudness");
+
+                            program_end_flag = 1;
+                            continue;
+                        }
+
+                        ipc_message.command =
+                                            IPC_COMMAND_AV_RECORD_LOUDNESS_DATA;
+                        snprintf(ipc_message.arg, sizeof(ipc_message.arg),
+                                 "%s %2.1f", av_record_name, integrated);
+                        ret = ipc_send_message(&ipc_context, &ipc_message);
+                        if (ret == 0)
+                        {
+                            float uptime;
+                            uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                            //printf("[%.3f] IPC message sent\n", uptime);
+                        }
+
+                        analyzer_uninit(&av_record_analyzer_context);
+
                         fclose(av_record_fp);
 
-                        printf("[%.3f] AV record end (%s)\n", uptime,
-                               av_record_name);
+                        printf("[%.3f] AV record end (%s, %2.1f)\n", uptime,
+                               av_record_name, integrated);
                     }
 
                     if (strlen(ipc_message.arg) == 0)
@@ -480,6 +509,17 @@ int main(int argc, char **argv)
                         continue;
                     }
 
+                    ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS,
+                                        &av_record_analyzer_context);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not initialize "
+                                        "AV record analyzer");
+
+                        program_end_flag = 1;
+                        continue;
+                    }
+
                     printf("[%.3f] AV record start (%s)\n", uptime,
                            av_record_name);
 
@@ -493,10 +533,36 @@ int main(int argc, char **argv)
                         break;
                     }
 
+                    double momentary, shortterm, integrated;
+                    ret = analyzer_get_loudness(&av_record_analyzer_context,
+                                                &momentary, &shortterm,
+                                                &integrated);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not get av record loudness");
+
+                        program_end_flag = 1;
+                        continue;
+                    }
+
+                    ipc_message.command = IPC_COMMAND_AV_RECORD_LOUDNESS_DATA;
+                    snprintf(ipc_message.arg, sizeof(ipc_message.arg),
+                             "%s %2.1f", av_record_name, integrated);
+                    ret = ipc_send_message(&ipc_context, &ipc_message);
+                    if (ret == 0)
+                    {
+                        float uptime;
+                        uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                        //printf("[%.3f] IPC message sent\n", uptime);
+                    }
+
+                    analyzer_uninit(&av_record_analyzer_context);
+
                     fclose(av_record_fp);
 
-                    printf("[%.3f] AV record end (%s)\n", uptime,
-                           av_record_name);
+                    printf("[%.3f] AV record end (%s, %2.1f)\n", uptime,
+                           av_record_name, integrated);
 
                     av_record_flag = 0;
                     break;
@@ -588,6 +654,19 @@ int main(int argc, char **argv)
 
             program_end_flag = 1;
             continue;
+        }
+
+        if (av_record_flag)
+        {
+            ret = analyzer_send_frame(&av_record_analyzer_context, audio_frame,
+                                      received_audio_frame_count);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not send AV record analyzer frame");
+
+                program_end_flag = 1;
+                continue;
+            }
         }
 
         uint64_t diff_usec;
