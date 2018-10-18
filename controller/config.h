@@ -17,6 +17,8 @@ extern "C" {
 
 #define STATUS_SEND_PERIOD_MSEC     (200)
 
+#define SCHEDULE_SEND_LEADING_DAY   (2)
+
 #define LINE_BUFFER_SIZE            (128)
 
 #define COMMAND_ARGUMENT_COUNT      (6)

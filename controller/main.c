@@ -2056,12 +2056,13 @@ int main(int argc, char **argv)
                     MessengerScheduleData *data = NULL;
                     if (schedule)
                     {
+                        int total_count = 0;
                         for (int i = 0; 0 <= schedule[i].index; i++)
                         {
-                            count++;
+                            total_count++;
                         }
 
-                        data = (MessengerScheduleData *)malloc(count *
+                        data = (MessengerScheduleData *)malloc(total_count *
                                                 sizeof(MessengerScheduleData));
                         if (!data)
                         {
@@ -2070,28 +2071,37 @@ int main(int argc, char **argv)
                             break;
                         }
 
-                        for (int i = 0; i < count; i++)
+                        for (int i = 0; i < total_count; i++)
                         {
-                            data[i].index = schedule[i].index;
+                            time_t expired_time = time(NULL) -
+                                            (SCHEDULE_SEND_LEADING_DAY * 86400);
+                            if (schedule[i].start < expired_time)
+                            {
+                                continue;
+                            }
+
+                            data[count].index = schedule[i].index;
                             ret = convert_unixtime_to_localtime_str(
-                                                         schedule[i].start,
-                                                         data[i].start,
-                                                         sizeof(data[i].start));
+                                                     schedule[i].start,
+                                                     data[count].start,
+                                                     sizeof(data[count].start));
                             if (ret != 0)
                             {
-                                strncpy(data[i].start, "1970-01-01 00:00:00",
-                                        sizeof(data[i].start));
+                                strncpy(data[count].start, "1970-01-01 00:00:00",
+                                        sizeof(data[count].start));
                             }
                             ret = convert_unixtime_to_localtime_str(
-                                                         schedule[i].end,
-                                                         data[i].end,
-                                                         sizeof(data[i].end));
+                                                     schedule[i].end,
+                                                     data[count].end,
+                                                     sizeof(data[count].end));
                             if (ret != 0)
                             {
-                                strncpy(data[i].end, "1970-01-01 00:00:00",
-                                        sizeof(data[i].end));
+                                strncpy(data[count].end, "1970-01-01 00:00:00",
+                                        sizeof(data[count].end));
                             }
-                            data[i].channel = schedule[i].channel;
+                            data[count].channel = schedule[i].channel;
+
+                            count++;
                         }
                     }
 
