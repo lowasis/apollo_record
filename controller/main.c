@@ -1706,10 +1706,10 @@ int main(int argc, char **argv)
                                  loudness_log_path, &log_list);
         if (ret == 0)
         {
-            float time;
-            time = (float)(get_usec() - start_usec) / 1000000;
+            float uptime;
+            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-            printf("[%.3f] %d, Loudness log start\n", time, i);
+            printf("[%.3f] %d, Loudness log start\n", uptime, i);
         }
 
         ret = save_log_list_data(&database_context, &log_list, 1);
@@ -1727,10 +1727,10 @@ int main(int argc, char **argv)
             ret = ipc_receive_message(&ipc_context[i], &ipc_message);
             if (ret == 0)
             {
-                float time;
-                time = (float)(get_usec() - start_usec) / 1000000;
+                float uptime;
+                uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                //printf("[%.3f] %d, IPC message received\n", time, i);
+                //printf("[%.3f] %d, IPC message received\n", uptime, i);
 
                 switch (ipc_message.command)
                 {
@@ -1777,10 +1777,10 @@ int main(int argc, char **argv)
                                         &messenger_recv_message);
         if (ret == 0)
         {
-            float time;
-            time = (float)(get_usec() - start_usec) / 1000000;
+            float uptime;
+            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-            //printf("[%.3f] Messenger message received\n", time);
+            //printf("[%.3f] Messenger message received\n", uptime);
 
             MessengerMessage messenger_message;
             messenger_message.type = MESSENGER_MESSAGE_TYPE_ACK;
@@ -1794,7 +1794,7 @@ int main(int argc, char **argv)
             {
                 case MESSENGER_MESSAGE_TYPE_STREAM_START:
                 {
-                    printf("[%.3f] AV stream start\n", time);
+                    printf("[%.3f] AV stream start\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -1822,7 +1822,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STREAM_STOP:
                 {
-                    printf("[%.3f] AV stream stop\n", time);
+                    printf("[%.3f] AV stream stop\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -1848,7 +1848,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_START:
                 {
-                    printf("[%.3f] Loudness send start\n", time);
+                    printf("[%.3f] Loudness send start\n", uptime);
 
                     loudness_send_flag = 1;
                     break;
@@ -1856,7 +1856,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_STOP:
                 {
-                    printf("[%.3f] Loudness send stop\n", time);
+                    printf("[%.3f] Loudness send stop\n", uptime);
 
                     loudness_send_flag = 0;
                     break;
@@ -1864,7 +1864,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_START:
                 {
-                    printf("[%.3f] Status send start\n", time);
+                    printf("[%.3f] Status send start\n", uptime);
 
                     status_send_flag = 1;
                     break;
@@ -1872,7 +1872,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_STOP:
                 {
-                    printf("[%.3f] Status send stop\n", time);
+                    printf("[%.3f] Status send stop\n", uptime);
 
                     status_send_flag = 0;
                     break;
@@ -1880,7 +1880,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_CHANNEL_CHANGE:
                 {
-                    printf("[%.3f] Channel change\n", time);
+                    printf("[%.3f] Channel change\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -1915,12 +1915,12 @@ int main(int argc, char **argv)
                                                        data[i].index);
                                 if (ret == 0)
                                 {
-                                    float time;
-                                    time = (float)(get_usec() - start_usec) /
-                                           1000000;
+                                    float uptime;
+                                    uptime = (float)(get_usec() - start_usec) /
+                                             1000000;
 
                                     printf("[%.3f] %d, Loudness log end\n",
-                                           time, data[i].index);
+                                           uptime, data[i].index);
                                 }
 
                                 ret = loudness_reset(ipc_context,
@@ -1938,12 +1938,12 @@ int main(int argc, char **argv)
                                                 loudness_log_path, &log_list);
                                 if (ret == 0)
                                 {
-                                    float time;
-                                    time = (float)(get_usec() - start_usec) /
-                                           1000000;
+                                    float uptime;
+                                    uptime = (float)(get_usec() - start_usec) /
+                                             1000000;
 
                                     printf("[%.3f] %d, Loudness log start\n",
-                                           time, data[i].index);
+                                           uptime, data[i].index);
                                 }
 
                                 ret = save_log_list_data(&database_context,
@@ -1968,7 +1968,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET:
                 {
-                    printf("[%.3f] Loudness reset\n", time);
+                    printf("[%.3f] Loudness reset\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -1994,7 +1994,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE:
                 {
-                    printf("[%.3f] Schedule\n", time);
+                    printf("[%.3f] Schedule\n", uptime);
 
                     if (schedule)
                     {
@@ -2050,7 +2050,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST:
                 {
-                    printf("[%.3f] Schedule request\n", time);
+                    printf("[%.3f] Schedule request\n", uptime);
 
                     int count = 0;
                     MessengerScheduleData *data = NULL;
@@ -2119,7 +2119,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST:
                 {
-                    printf("[%.3f] Playback list request\n", time);
+                    printf("[%.3f] Playback list request\n", uptime);
 
                     PlaybackList *list = NULL;
                     int count = 0;
@@ -2187,7 +2187,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST:
                 {
-                    printf("[%.3f] Log list request\n", time);
+                    printf("[%.3f] Log list request\n", uptime);
 
                     LogList *list = NULL;
                     int count = 0;
@@ -2251,7 +2251,7 @@ int main(int argc, char **argv)
                 }
                 case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS:
                 {
-                    printf("[%.3f] User loudness\n", time);
+                    printf("[%.3f] User loudness\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -2346,7 +2346,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST:
                 {
-                    printf("[%.3f] User loudness request\n", time);
+                    printf("[%.3f] User loudness request\n", uptime);
 
                     if (messenger_recv_message.data)
                     {
@@ -2616,10 +2616,10 @@ int main(int argc, char **argv)
                 ret = loudness_log_end(ipc_context, i);
                 if (ret == 0)
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, Loudness log end\n", time, i);
+                    printf("[%.3f] %d, Loudness log end\n", uptime, i);
                 }
 
                 ret = loudness_reset(ipc_context, i);
@@ -2633,10 +2633,10 @@ int main(int argc, char **argv)
                                          loudness_log_path, &log_list);
                 if (ret == 0)
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, Loudness log start\n", time, i);
+                    printf("[%.3f] %d, Loudness log start\n", uptime, i);
                 }
 
                 PlaybackList playback_list;
@@ -2646,10 +2646,10 @@ int main(int argc, char **argv)
                                       av_record_path, &playback_list);
                 if (ret == 0)
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, AV record start\n", time, i);
+                    printf("[%.3f] %d, AV record start\n", uptime, i);
 
                     status[i].recording = 1;
                 }
@@ -2679,10 +2679,10 @@ int main(int argc, char **argv)
                 ret = av_record_end(ipc_context, i);
                 if (ret == 0)
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, AV record end\n", time, i);
+                    printf("[%.3f] %d, AV record end\n", uptime, i);
 
                     status[i].recording = 0;
                 }
@@ -2770,10 +2770,10 @@ int main(int argc, char **argv)
                                                &ipc_message);
                         if (ret == 0)
                         {
-                            float time;
-                            time = (float)(get_usec() - start_usec) / 1000000;
+                            float uptime;
+                            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                            printf("[%.3f] %d, IPC message sent\n", time,
+                            printf("[%.3f] %d, IPC message sent\n", uptime,
                                    index);
                         }
 

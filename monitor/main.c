@@ -341,10 +341,10 @@ int main(int argc, char **argv)
         ret = ipc_receive_message(&ipc_context, &ipc_message);
         if (ret == 0)
         {
-            float time;
-            time = (float)(get_usec() - start_usec) / 1000000;
+            float uptime;
+            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-            //printf("[%.3f] IPC message received\n", time);
+            //printf("[%.3f] IPC message received\n", uptime);
 
             switch (ipc_message.command)
             {
@@ -353,13 +353,13 @@ int main(int argc, char **argv)
                     {
                         logger_uninit(&logger_context);
 
-                        printf("[%.3f] Loudness log end (%s)\n", time,
+                        printf("[%.3f] Loudness log end (%s)\n", uptime,
                                loudness_log_name);
                     }
 
                     if (strlen(ipc_message.arg) == 0)
                     {
-                        printf("[%.3f] Null loudness log name\n", time);
+                        printf("[%.3f] Null loudness log name\n", uptime);
                         break;
                     }
 
@@ -375,7 +375,7 @@ int main(int argc, char **argv)
                         continue;
                     }
 
-                    printf("[%.3f] Loudness log start (%s)\n", time,
+                    printf("[%.3f] Loudness log start (%s)\n", uptime,
                            loudness_log_name);
 
                     loudness_log_start_usec = get_usec();
@@ -385,13 +385,13 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_LOUDNESS_LOG_END:
                     if (!loudness_log_flag)
                     {
-                        printf("[%.3f] Already loudness log ended\n", time);
+                        printf("[%.3f] Already loudness log ended\n", uptime);
                         break;
                     }
 
                     logger_uninit(&logger_context);
 
-                    printf("[%.3f] Loudness log end (%s)\n", time,
+                    printf("[%.3f] Loudness log end (%s)\n", uptime,
                            loudness_log_name);
 
                     loudness_log_flag = 0;
@@ -402,20 +402,20 @@ int main(int argc, char **argv)
                     {
                         streamer_uninit(&streamer_context);
 
-                        printf("[%.3f] AV stream end (%s %d)\n", time,
+                        printf("[%.3f] AV stream end (%s %d)\n", uptime,
                                av_stream_ip_name, av_stream_port_number);
                     }
 
                     char *name = strtok(ipc_message.arg, " ");
                     if (!name || strlen(name) == 0)
                     {
-                        printf("[%.3f] Null AV stream ip name\n", time);
+                        printf("[%.3f] Null AV stream ip name\n", uptime);
                         break;
                     }
                     char *number = strtok(NULL, " ");
                     if (!number || strlen(number) == 0)
                     {
-                        printf("[%.3f] Null AV stream port number\n", time);
+                        printf("[%.3f] Null AV stream port number\n", uptime);
                         break;
                     }
 
@@ -433,7 +433,7 @@ int main(int argc, char **argv)
                         continue;
                     }
 
-                    printf("[%.3f] AV stream start (%s %d)\n", time,
+                    printf("[%.3f] AV stream start (%s %d)\n", uptime,
                            av_stream_ip_name, av_stream_port_number);
 
                     av_stream_flag = 1;
@@ -442,13 +442,13 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_AV_STREAM_END:
                     if (!av_stream_flag)
                     {
-                        printf("[%.3f] Already AV stream ended\n", time);
+                        printf("[%.3f] Already AV stream ended\n", uptime);
                         break;
                     }
 
                     streamer_uninit(&streamer_context);
 
-                    printf("[%.3f] AV stream end (%s %d)\n", time,
+                    printf("[%.3f] AV stream end (%s %d)\n", uptime,
                            av_stream_ip_name, av_stream_port_number);
 
                     av_stream_flag = 0;
@@ -459,13 +459,13 @@ int main(int argc, char **argv)
                     {
                         fclose(av_record_fp);
 
-                        printf("[%.3f] AV record end (%s)\n", time,
+                        printf("[%.3f] AV record end (%s)\n", uptime,
                                av_record_name);
                     }
 
                     if (strlen(ipc_message.arg) == 0)
                     {
-                        printf("[%.3f] Null AV record name\n", time);
+                        printf("[%.3f] Null AV record name\n", uptime);
                         break;
                     }
 
@@ -480,7 +480,7 @@ int main(int argc, char **argv)
                         continue;
                     }
 
-                    printf("[%.3f] AV record start (%s)\n", time,
+                    printf("[%.3f] AV record start (%s)\n", uptime,
                            av_record_name);
 
                     av_record_flag = 1;
@@ -489,13 +489,13 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_AV_RECORD_END:
                     if (!av_record_flag)
                     {
-                        printf("[%.3f] Already AV record ended\n", time);
+                        printf("[%.3f] Already AV record ended\n", uptime);
                         break;
                     }
 
                     fclose(av_record_fp);
 
-                    printf("[%.3f] AV record end (%s)\n", time,
+                    printf("[%.3f] AV record end (%s)\n", uptime,
                            av_record_name);
 
                     av_record_flag = 0;
@@ -514,11 +514,11 @@ int main(int argc, char **argv)
                         continue;
                     }
 
-                    printf("[%.3f] Analyzer reset\n", time);
+                    printf("[%.3f] Analyzer reset\n", uptime);
                     break;
 
                 case IPC_COMMAND_PROGRAM_END:
-                    printf("[%.3f] Program end\n", time);
+                    printf("[%.3f] Program end\n", uptime);
 
                     program_end_flag = 1;
                     continue;
@@ -544,10 +544,10 @@ int main(int argc, char **argv)
             }
             else
             {
-                float time;
-                time = (float)(get_usec() - start_usec) / 1000000;
+                float uptime;
+                uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                //printf("[%.3f] Video frame recorded\n", time);
+                //printf("[%.3f] Video frame recorded\n", uptime);
             }
         }
 
@@ -574,10 +574,10 @@ int main(int argc, char **argv)
         }
         else
         {
-            float time;
-            time = (float)(get_usec() - start_usec) / 1000000;
+            float uptime;
+            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-            //printf("[%.3f] Audio frame recorded\n", time);
+            //printf("[%.3f] Audio frame recorded\n", uptime);
         }
 
         ret = analyzer_send_frame(&analyzer_context, audio_frame,
@@ -611,22 +611,22 @@ int main(int argc, char **argv)
             ret = ipc_send_message(&ipc_context, &ipc_message);
             if (ret == 0)
             {
-                float time;
-                time = (float)(get_usec() - start_usec) / 1000000;
+                float uptime;
+                uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                //printf("[%.3f] IPC message sent\n", time);
+                //printf("[%.3f] IPC message sent\n", uptime);
             }
 
             if (loudness_log_flag)
             {
-                uint64_t time;
-                time = (get_usec() - loudness_log_start_usec) / 1000;
+                uint64_t uptime;
+                uptime = (get_usec() - loudness_log_start_usec) / 1000;
 
                 int hour, min, sec, msec;
-                hour = (time / 3600000);
-                min = (time % 3600000) / 60000;
-                sec = (time % 60000) / 1000;
-                msec = time % 1000;
+                hour = (uptime / 3600000);
+                min = (uptime % 3600000) / 60000;
+                sec = (uptime % 60000) / 1000;
+                msec = uptime % 1000;
                 ret = logger_printf(&logger_context, LOGGER_LEVEL_DEFAULT,
                                     "  %02d:%02d:%02d.%03d   %2.1f   %2.1f\n",
                                     hour, min, sec, msec, momentary,
@@ -640,10 +640,10 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    //printf("[%.3f] Loudness log wrote\n", time);
+                    //printf("[%.3f] Loudness log wrote\n", uptime);
                 }
             }
 
@@ -668,10 +668,10 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    //printf("[%.3f] AV stream sent\n", time);
+                    //printf("[%.3f] AV stream sent\n", uptime);
                 }
             }
 
@@ -688,10 +688,10 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    float time;
-                    time = (float)(get_usec() - start_usec) / 1000000;
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    //printf("[%.3f] AV record wrote\n", time);
+                    //printf("[%.3f] AV record wrote\n", uptime);
                 }
             }
         }
