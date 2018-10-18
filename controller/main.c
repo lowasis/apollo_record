@@ -8,6 +8,7 @@
 #include <math.h>
 #include <time.h>
 #include <pthread.h>
+#include <libgen.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -45,6 +46,7 @@ typedef struct PlaybackList {
     char start[24];
     char end[24];
     int channel;
+    double loudness;
 } PlaybackList;
 
 typedef struct LogList {
@@ -639,6 +641,7 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
     strncpy(list->start, start, sizeof(list->start));
     strncpy(list->end, end, sizeof(list->end));
     list->channel = channel;
+    list->loudness = 0.;
 
     return 0;
 }
@@ -909,6 +912,7 @@ static int save_playback_list_data(DatabaseContext *context,
         strncpy(data[i].start, list[i].start, sizeof(data[i].start));
         strncpy(data[i].end, list[i].end, sizeof(data[i].end));
         data[i].channel = list[i].channel;
+        data[i].loudness = list[i].loudness;
     }
 
     ret = database_set_playback_list_data(context, data, count);
@@ -977,6 +981,7 @@ static int load_playback_list_data(DatabaseContext *context,
         strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
         strncpy(new_list[i].end, data[i].end, sizeof(data[i].end));
         new_list[i].channel = data[i].channel;
+        new_list[i].loudness = data[i].loudness;
     }
 
     if (*list)
@@ -987,6 +992,23 @@ static int load_playback_list_data(DatabaseContext *context,
     *list = new_list;
 
     free(data);
+
+    return 0;
+}
+
+static int update_playback_list_loudness_data(DatabaseContext *context,
+                                              char *name, double loudness)
+{
+    int ret;
+
+    ret = database_update_playback_list_loudness_data(context, name, loudness);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not update "
+                        "database playback list loudness data\n");
+
+        return -1;
+    }
 
     return 0;
 }
@@ -1683,9 +1705,6 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    char *momentary;
-    char *shortterm;
-    char *integrated;
     Loudness loudness[IPC_SOCKET_COUNT] = {0,};
 
     Status status[IPC_SOCKET_COUNT] = {0,};
@@ -1752,19 +1771,62 @@ int main(int argc, char **argv)
 
                 switch (ipc_message.command)
                 {
+                    case IPC_COMMAND_AV_RECORD_LOUDNESS_DATA:
+                    {
+                        printf("[%.3f] %d, AV record loudness data %s\n",
+                               uptime, i, ipc_message.arg);
+
+                        char *str;
+                        str = strtok(ipc_message.arg, " ");
+                        if (!str || strlen(str) == 0)
+                        {
+                            printf("Null AV record name\n");
+                            break;
+                        }
+                        char *name;
+                        name = basename(str);
+                        if (!name || strlen(name) == 0)
+                        {
+                            printf("Null AV record basename\n");
+                            break;
+                        }
+                        str = strtok(NULL, " ");
+                        if (!str || strlen(str) == 0)
+                        {
+                            printf("Null AV record integrated loudness data\n");
+                            break;
+                        }
+                        double integrated;
+                        integrated = strtod(str, NULL);
+
+                        ret = update_playback_list_loudness_data(
+                                                              &database_context,
+                                                              name, integrated);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not update "
+                                            "playback list loudness data\n");
+                        }
+                        break;
+                    }
+
                     case IPC_COMMAND_LOUDNESS_DATA:
+                    {
+                        char *momentary;
                         momentary = strtok(ipc_message.arg, " ");
                         if (!momentary || strlen(momentary) == 0)
                         {
                             printf("Null momentary loudness data\n");
                             break;
                         }
+                        char *shortterm;
                         shortterm = strtok(NULL, " ");
                         if (!shortterm || strlen(shortterm) == 0)
                         {
                             printf("Null shortterm loudness data\n");
                             break;
                         }
+                        char *integrated;
                         integrated = strtok(NULL, " ");
                         if (!integrated || strlen(integrated) == 0)
                         {
@@ -1777,15 +1839,20 @@ int main(int argc, char **argv)
                         loudness[i].shortterm = strtod(shortterm, NULL);
                         loudness[i].integrated = strtod(integrated, NULL);
                         break;
+                    }
 
                     case IPC_COMMAND_PROGRAM_END:
+                    {
                         printf("Program end\n");
 
                         program_end_flag = 1;
                         continue;
+                    }
 
                     default:
+                    {
                         break;
+                    }
                 }
             }
         }
@@ -2183,6 +2250,7 @@ int main(int argc, char **argv)
                                 sizeof(data[i].start));
                         strncpy(data[i].end, list[i].end, sizeof(data[i].end));
                         data[i].channel = list[i].channel;
+                        data[i].loudness = list[i].loudness;
                     }
 
                     if (list)

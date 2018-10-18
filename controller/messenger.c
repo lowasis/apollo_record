@@ -512,6 +512,15 @@ static int generate_playback_list_xml(MessengerMessage *message,
             return -1;
         }
 
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("loudness"),
+                                                "%2.1f", data[i].loudness);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {

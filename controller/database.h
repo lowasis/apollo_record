@@ -26,6 +26,7 @@ typedef struct DatabasePlaybackListData {
     char start[24];
     char end[24];
     int channel;
+    double loudness;
 } DatabasePlaybackListData;
 
 typedef struct DatabaseLogListData {
@@ -68,6 +69,8 @@ int database_set_playback_list_data(DatabaseContext *context,
                                     DatabasePlaybackListData *data, int count);
 int database_get_playback_list_data(DatabaseContext *context,
                                     DatabasePlaybackListData *data, int count);
+int database_update_playback_list_loudness_data(DatabaseContext *context,
+                                                char *name, double loudness);
 int database_count_log_list_data(DatabaseContext *context, int *count);
 int database_set_log_list_data(DatabaseContext *context,
                                DatabaseLogListData *data, int count);

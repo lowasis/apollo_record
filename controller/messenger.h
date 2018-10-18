@@ -79,6 +79,7 @@ typedef struct MessengerPlaybackListData {
     char start[24];
     char end[24];
     int channel;
+    double loudness;
 } MessengerPlaybackListData;
 
 typedef struct MessengerLogListData {

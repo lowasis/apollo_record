@@ -164,6 +164,10 @@ static int get_playback_list_data_callback(void *arg, int argc, char **argv,
             {
                 data[*i].channel = strtol(argv[j], NULL, 10);
             }
+            else if (strcmp(col[j], "LOUDNESS") == 0)
+            {
+                data[*i].loudness = strtod(argv[j], NULL);
+            }
         }
 
         (*i)++;
@@ -354,7 +358,8 @@ int database_init(char *name, DatabaseContext *context)
              "NAME        CHAR(%ld) NOT NULL, "
              "START       CHAR(%ld) NOT NULL, "
              "END         CHAR(%ld) NOT NULL, "
-             "CHANNEL     INTEGER NOT NULL);",
+             "CHANNEL     INTEGER NOT NULL, "
+             "LOUDNESS    REAL NOT NULL);",
              sizeof(p.name), sizeof(p.start), sizeof(p.end));
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
@@ -645,11 +650,11 @@ int database_set_playback_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO PLAYBACK_LIST "
-                 "(ID, NAME, START, END, CHANNEL) VALUES "
+                 "(ID, NAME, START, END, CHANNEL, LOUDNESS) VALUES "
                  "((SELECT ID FROM PLAYBACK_LIST WHERE NAME = \"%s\"), "
-                 "\"%s\", \"%s\", \"%s\", %d);",
+                 "\"%s\", \"%s\", \"%s\", %d, %f);",
                  data[i].name, data[i].name, data[i].start, data[i].end,
-                 data[i].channel);
+                 data[i].channel, data[i].loudness);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -676,7 +681,7 @@ int database_get_playback_list_data(DatabaseContext *context,
 
     char query[512];
     snprintf(query, sizeof(query),
-             "SELECT NAME, START, END, CHANNEL FROM PLAYBACK_LIST;");
+             "SELECT NAME, START, END, CHANNEL, LOUDNESS FROM PLAYBACK_LIST;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};
@@ -686,6 +691,33 @@ int database_get_playback_list_data(DatabaseContext *context,
     {
         fprintf(stderr,
                 "Could not execute sqlite3 select playback list data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_update_playback_list_loudness_data(DatabaseContext *context,
+                                                char *name, double loudness)
+{
+    int ret;
+
+    if (!context || !name)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "UPDATE PLAYBACK_LIST SET LOUDNESS = %f WHERE NAME = \"%s\";",
+             loudness, name);
+
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr, "Could not execute sqlite3 update "
+                        "playback list loudness data\n");
 
         return -1;
     }
