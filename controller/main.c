@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <math.h>
 #include <time.h>
+#include <pthread.h>
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -407,12 +408,15 @@ static int remove_non_filename_character(char *str, int size)
     return 0;
 }
 
-static int channel_change(IrRemoteContext *context, int index, int channel)
+static void *channel_change_thread(void *arg)
 {
     int ret;
 
+    IrRemoteContext *context = (IrRemoteContext *)((void **)arg)[0];
+    int *channel = (int *)((void **)arg)[1];
+
     char buf[4];
-    snprintf(buf, sizeof(buf), "%3d", channel);
+    snprintf(buf, sizeof(buf), "%3d", *channel);
     for (int i = 0; i < strlen(buf); i++)
     {
         IrRemoteKey key;
@@ -462,21 +466,38 @@ static int channel_change(IrRemoteContext *context, int index, int channel)
                 continue;
         }
 
-        ret = irremote_send_key(&context[index], key);
+        ret = irremote_send_key(context, key);
         if (ret != 0)
         {
             fprintf(stderr, "Could not send irremote key\n");
 
-            return -1;
+            return NULL;
         }
 
-        usleep(500 * 1000);
+        usleep(1500 * 1000);
     }
 
-    ret = irremote_send_key(&context[index], IRREMOTE_KEY_OK);
+    ret = irremote_send_key(context, IRREMOTE_KEY_OK);
     if (ret != 0)
     {
         fprintf(stderr, "Could not send irremote key\n");
+
+        return NULL;
+    }
+
+    return NULL;
+}
+
+static int channel_change(IrRemoteContext *context, int index, int channel)
+{
+    int ret;
+
+    pthread_t thread;
+    void *arg[] = {&context[index], &channel};
+    ret = pthread_create(&thread, NULL, channel_change_thread, arg);
+    if (ret < 0)
+    {
+        fprintf(stderr, "Could not create channel change thread\n");
 
         return -1;
     }
