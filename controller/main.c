@@ -66,6 +66,11 @@ typedef struct UserLoudnessSection {
     char comment[128];
 } UserLoudnessSection;
 
+typedef struct ChannelChangeThreadArg {
+    IrRemoteContext *context;
+    int channel;
+} ChannelChangeThreadArg;
+
 
 static void print_usage(char *name)
 {
@@ -412,11 +417,13 @@ static void *channel_change_thread(void *arg)
 {
     int ret;
 
-    IrRemoteContext *context = (IrRemoteContext *)((void **)arg)[0];
-    int *channel = (int *)((void **)arg)[1];
+    IrRemoteContext *context = ((ChannelChangeThreadArg *)arg)->context;
+    int channel = ((ChannelChangeThreadArg *)arg)->channel;
+
+    free(arg);
 
     char buf[4];
-    snprintf(buf, sizeof(buf), "%3d", *channel);
+    snprintf(buf, sizeof(buf), "%3d", channel);
     for (int i = 0; i < strlen(buf); i++)
     {
         IrRemoteKey key;
@@ -492,9 +499,20 @@ static int channel_change(IrRemoteContext *context, int index, int channel)
 {
     int ret;
 
+    ChannelChangeThreadArg *arg;
+    arg = (ChannelChangeThreadArg *)malloc(sizeof(ChannelChangeThreadArg));
+    if (!arg)
+    {
+        fprintf(stderr, "Could not allocate channel change argument buffer\n");
+
+        return -1;
+    }
+
+    arg->context = &context[index];
+    arg->channel = channel;
+
     pthread_t thread;
-    void *arg[] = {&context[index], &channel};
-    ret = pthread_create(&thread, NULL, channel_change_thread, arg);
+    ret = pthread_create(&thread, NULL, channel_change_thread, (void *)arg);
     if (ret < 0)
     {
         fprintf(stderr, "Could not create channel change thread\n");
