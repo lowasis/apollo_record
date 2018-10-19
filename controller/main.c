@@ -1326,6 +1326,27 @@ static int load_user_loudness_section_data(DatabaseContext *context,
     return 0;
 }
 
+static int send_ack_message(MessengerContext *context, char *ip, int number)
+{
+    int ret;
+
+    MessengerMessage message;
+    message.type = MESSENGER_MESSAGE_TYPE_ACK;
+    strncpy(message.ip, ip, sizeof(message.ip));
+    message.number = number;
+    message.count = 0;
+    message.data = NULL;
+    ret = messenger_send_message(context, &message);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not send messenger ack message\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -1868,17 +1889,18 @@ int main(int argc, char **argv)
             //printf("[%.3f] Messenger message received\n", uptime);
 
             MessengerMessage messenger_message;
-            messenger_message.type = MESSENGER_MESSAGE_TYPE_ACK;
-            strncpy(messenger_message.ip, my_ip, sizeof(messenger_message.ip));
-            messenger_message.number = messenger_recv_message.number;
-            messenger_message.count = 0;
-            messenger_message.data = NULL;
-            messenger_send_message(&messenger_context, &messenger_message);
 
             switch (messenger_recv_message.type)
             {
                 case MESSENGER_MESSAGE_TYPE_STREAM_START:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] AV stream start\n", uptime);
 
                     if (messenger_recv_message.data)
@@ -1907,6 +1929,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STREAM_STOP:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] AV stream stop\n", uptime);
 
                     if (messenger_recv_message.data)
@@ -1933,6 +1962,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_START:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Loudness send start\n", uptime);
 
                     loudness_send_flag = 1;
@@ -1941,6 +1977,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_STOP:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Loudness send stop\n", uptime);
 
                     loudness_send_flag = 0;
@@ -1949,6 +1992,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_START:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Status send start\n", uptime);
 
                     status_send_flag = 1;
@@ -1957,6 +2007,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_STATUS_STOP:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Status send stop\n", uptime);
 
                     status_send_flag = 0;
@@ -1965,6 +2022,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_CHANNEL_CHANGE:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Channel change\n", uptime);
 
                     if (messenger_recv_message.data)
@@ -2053,6 +2117,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOUDNESS_RESET:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Loudness reset\n", uptime);
 
                     if (messenger_recv_message.data)
@@ -2079,6 +2150,13 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] Schedule\n", uptime);
 
                     if (schedule)
@@ -2194,7 +2272,7 @@ int main(int argc, char **argv)
                     messenger_message.type = MESSENGER_MESSAGE_TYPE_SCHEDULE;
                     strncpy(messenger_message.ip, my_ip,
                             sizeof(messenger_message.ip));
-                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.number = messenger_recv_message.number;
                     messenger_message.count = count;
                     messenger_message.data = (void *)data;
                     ret = messenger_send_message(&messenger_context,
@@ -2263,7 +2341,7 @@ int main(int argc, char **argv)
                                            MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST;
                     strncpy(messenger_message.ip, my_ip,
                             sizeof(messenger_message.ip));
-                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.number = messenger_recv_message.number;
                     messenger_message.count = count;
                     messenger_message.data = (void *)data;
                     ret = messenger_send_message(&messenger_context,
@@ -2328,7 +2406,7 @@ int main(int argc, char **argv)
                     messenger_message.type = MESSENGER_MESSAGE_TYPE_LOG_LIST;
                     strncpy(messenger_message.ip, my_ip,
                             sizeof(messenger_message.ip));
-                    messenger_message.number = rand() & 0xffff;
+                    messenger_message.number = messenger_recv_message.number;
                     messenger_message.count = count;
                     messenger_message.data = (void *)data;
                     ret = messenger_send_message(&messenger_context,
@@ -2347,6 +2425,13 @@ int main(int argc, char **argv)
                 }
                 case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS:
                 {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send ack message\n")
+                    }
+
                     printf("[%.3f] User loudness\n", uptime);
 
                     if (messenger_recv_message.data)
@@ -2567,7 +2652,8 @@ int main(int argc, char **argv)
                                            MESSENGER_MESSAGE_TYPE_USER_LOUDNESS;
                             strncpy(messenger_message.ip, my_ip,
                                     sizeof(messenger_message.ip));
-                            messenger_message.number = rand() & 0xffff;
+                            messenger_message.number =
+                                                  messenger_recv_message.number;
                             messenger_message.count = count;
                             messenger_message.data = (void *)data;
                             ret = messenger_send_message(&messenger_context,
