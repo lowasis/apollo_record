@@ -1898,7 +1898,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] AV stream start\n", uptime);
@@ -1933,7 +1933,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] AV stream stop\n", uptime);
@@ -1966,7 +1966,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Loudness send start\n", uptime);
@@ -1981,7 +1981,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Loudness send stop\n", uptime);
@@ -1996,7 +1996,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Status send start\n", uptime);
@@ -2011,7 +2011,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Status send stop\n", uptime);
@@ -2026,7 +2026,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Channel change\n", uptime);
@@ -2121,7 +2121,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Loudness reset\n", uptime);
@@ -2154,7 +2154,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] Schedule\n", uptime);
@@ -2429,7 +2429,7 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n")
+                        fprintf(stderr, "Could not send ack message\n");
                     }
 
                     printf("[%.3f] User loudness\n", uptime);
