@@ -439,7 +439,7 @@ JSON_SYNTAX_ERROR = 'json 파일 형식이 잘못되었습니다.'
 
 # Get epg data
 def getEpg():
-    Channelfile = os.path.dirname(os.path.abspath(__file__)) + '/Channel.json'
+    Channelfile = 'Channel.json'
     ChannelInfos = []
     try:
         with open(Channelfile) as f: # Read Channel Information file
@@ -887,7 +887,7 @@ def replacement(match, tag):
     else:
         return '';
 
-Settingfile = os.path.dirname(os.path.abspath(__file__)) + '/epg2xml.json'
+Settingfile = 'epg2xml.json'
 ChannelInfos = []
 try:
     with open(Settingfile) as f: # Read Channel Information file
