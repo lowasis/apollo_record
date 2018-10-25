@@ -539,7 +539,7 @@ def GetEPGFromKT(ChannelInfo):
                         rebroadcast = False
                         for minute, program, category in zip(cell[1].find_all('p'), cell[2].find_all('p'), cell[3].find_all('p')):
                             startTime = str(day) + ' ' + cell[0].text.strip() + ':' + minute.text.strip()
-                            startTime = datetime.datetime.strptime(startTime, '%Y-%m-%d %H:%M')
+                            startTime = datetime.datetime(*(time.strptime(startTime, '%Y-%m-%d %H:%M')[0:6]))
                             startTime = startTime.strftime('%Y%m%d%H%M%S')
                             programName = program.text.replace('방송중 ', '').strip()
                             category = category.text.strip()
@@ -586,7 +586,7 @@ def GetEPGFromLG(ChannelInfo):
                         rebroadcast = False
                         rating = 0
                         startTime = str(day) + ' ' + cell[0].text
-                        startTime = datetime.datetime.strptime(startTime, '%Y-%m-%d %H:%M')
+                        startTime = datetime.datetime(*(time.strptime(startTime, '%Y-%m-%d %H:%M')[0:6]))
                         startTime = startTime.strftime('%Y%m%d%H%M%S')
                         rating = 0 if cell[1].find('span', {'class': 'tag cte_all'}).text.strip()=="All" else int(cell[1].find('span', {'class': 'tag cte_all'}).text.strip())
                         cell[1].find('span', {'class': 'tagGroup'}).decompose()
@@ -698,7 +698,7 @@ def GetEPGFromSKB(ChannelInfo):
                     rebroadcast = False
                     rating = 0
                     startTime = str(day) + ' ' + row.find('p', {'class':'time'}).text
-                    startTime = datetime.datetime.strptime(startTime, '%Y-%m-%d %H:%M')
+                    startTime = datetime.datetime(*(time.strptime(startTime, '%Y-%m-%d %H:%M')[0:6]))
                     startTime = startTime.strftime('%Y%m%d%H%M%S')
                     cell = row.find('p', {'class':'cont'})
 	            grade = row.find('i', {'class':'hide'})
@@ -756,7 +756,7 @@ def GetEPGFromNaver(ChannelInfo):
                         rating = 0
                         programName = unescape(program['title'])
                         startTime = date['date'] + ' ' + program['startTime']
-                        startTime = datetime.datetime.strptime(startTime, '%Y%m%d %H:%M')
+                        startTime = datetime.datetime(*(time.strptime(startTime, '%Y%m%d %H:%M')[0:6]))
                         startTime = startTime.strftime('%Y%m%d%H%M%S')
                         episode = program['episode'].replace('회','')
                         rebroadcast = program['isRerun']
