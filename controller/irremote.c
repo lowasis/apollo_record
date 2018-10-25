@@ -8,6 +8,7 @@ static const struct {
     char *model_name;
 } irremote_model_table[] = {
     {IRREMOTE_MODEL_SKB_BTV, "SKB_BTV"},
+    {IRREMOTE_MODEL_KT_OLLEHTV, "KT_OLLEHTV"},
     {0, NULL}
 };
 
