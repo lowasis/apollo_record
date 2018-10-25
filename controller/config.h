@@ -5,23 +5,25 @@
 extern "C" {
 #endif
 
-#define IPC_SOCKET_COUNT            (5)
+#define IPC_SOCKET_COUNT                (5)
 
-#define LIRCD_SOCKET_COUNT          (5)
+#define LIRCD_SOCKET_COUNT              (5)
 
-#define IRREMOTE_MODEL              (IRREMOTE_MODEL_SKB_BTV)
+#define IRREMOTE_MODEL                  (IRREMOTE_MODEL_SKB_BTV)
 
-#define MESSENGER_BUFFER_SIZE       (64 * 1024)
+#define MESSENGER_BUFFER_SIZE           (64 * 1024)
 
-#define LOUDNESS_SEND_PERIOD_MSEC   (200)
+#define EPG_BROADCAST_SERVICE_OPERATOR  (EPG_BROADCAST_SERVICE_OPERATOR_SKB)
 
-#define STATUS_SEND_PERIOD_MSEC     (200)
+#define LOUDNESS_SEND_PERIOD_MSEC       (200)
 
-#define SCHEDULE_SEND_LEADING_DAY   (2)
+#define STATUS_SEND_PERIOD_MSEC         (200)
 
-#define LINE_BUFFER_SIZE            (128)
+#define SCHEDULE_SEND_LEADING_DAY       (2)
 
-#define COMMAND_ARGUMENT_COUNT      (6)
+#define LINE_BUFFER_SIZE                (128)
+
+#define COMMAND_ARGUMENT_COUNT          (6)
 
 #ifdef __cplusplus
 }

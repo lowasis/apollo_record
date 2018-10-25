@@ -1747,7 +1747,7 @@ int main(int argc, char **argv)
         char name[128];
         snprintf(name, sizeof(name), "%s/apollo_record%d.xml", epg_xml_path, i);
 
-        ret = epg_init(name, &epg_context[i]);
+        ret = epg_init(name, EPG_BROADCAST_SERVICE_OPERATOR, &epg_context[i]);
         if (ret != 0)
         {
             fprintf(stderr, "Could not initialize EPG\n");
