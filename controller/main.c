@@ -20,6 +20,7 @@
 #include "irremote.h"
 #include "database.h"
 #include "messenger.h"
+#include "epg.h"
 
 
 typedef struct Loudness {
@@ -90,6 +91,7 @@ static void print_usage(char *name)
            "-m | --messenger number   Messenger port number\n"
            "-L | --log path           Loudness log path\n"
            "-R | --record path        AV record path\n"
+           "-E | --epg path           EPG XML path\n"
            "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT);
 }
 
@@ -97,12 +99,12 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                       int *ipc_socket_name_count, char **lircd_socket_name,
                       int *lircd_socket_name_count, char **sqlite_database_name,
                       int *messenger_port_number, char **loudness_log_path,
-                      char **av_record_path)
+                      char **av_record_path, char **epg_xml_path)
 {
     if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
         !lircd_socket_name || !lircd_socket_name_count ||
         !sqlite_database_name || !messenger_port_number ||
-        !loudness_log_path || !av_record_path)
+        !loudness_log_path || !av_record_path || !epg_xml_path)
     {
         return -1;
     }
@@ -121,10 +123,11 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
     *messenger_port_number = 0;
     *loudness_log_path = NULL;
     *av_record_path = NULL;
+    *epg_xml_path = NULL;
 
     while (1)
     {
-        const char short_options[] = "hi:l:s:m:L:R:";
+        const char short_options[] = "hi:l:s:m:L:R:E:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"ipc", required_argument, NULL, 'i'},
@@ -133,6 +136,7 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
             {"messenger", required_argument, NULL, 'm'},
             {"log", required_argument, NULL, 'L'},
             {"record", required_argument, NULL, 'R'},
+            {"epg", required_argument, NULL, 'E'},
             {0, 0, 0, 0}
         };
         int index;
@@ -181,6 +185,10 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 *av_record_path = optarg;
                 break;
 
+            case 'E':
+                *epg_xml_path = optarg;
+                break;
+
             default:
                 return -1;
         }
@@ -188,7 +196,7 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
 
     if (*ipc_socket_name_count == 0 || *lircd_socket_name_count == 0 ||
         !*sqlite_database_name || *messenger_port_number == 0 ||
-        !*loudness_log_path || !*av_record_path)
+        !*loudness_log_path || !*av_record_path || !*epg_xml_path)
     {
         return -1;
     }
@@ -411,6 +419,32 @@ static int remove_non_filename_character(char *str, int size)
             }
         }
     }
+
+    return 0;
+}
+
+static int epg_request_data_callback(EpgContext *context, int channel,
+                                     void *arg)
+{
+    int ret;
+
+    EpgData *data;
+    int count;
+    ret = epg_receive_data(context, &data, &count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not receive EPG data\n");
+
+        return -1;
+    }
+
+    printf("Channel %d\n", channel);
+    for (int i = 0; i < count; i++)
+    {
+        printf("%s, %s, %s\n", data[i].title, data[i].start, data[i].stop);
+    }
+
+    free(data);
 
     return 0;
 }
@@ -1564,6 +1598,35 @@ static void *command_func_schedule_print(void *context, int index, void **arg)
     }
 }
 
+static void *command_func_epg_print(void *context, int index, void **arg)
+{
+    int ret;
+
+    EpgContext *epg_context = (EpgContext *)context;
+    char *channel = (char *)arg[0];
+
+    char *p;
+    int number;
+    number = strtol(channel, &p, 10);
+    if ((p - channel) != strlen(channel))
+    {
+        printf("Wrong channel number\n");
+
+        return NULL;
+    }
+
+    ret = epg_request_data(&epg_context[index], number,
+                           epg_request_data_callback, NULL);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not request EPG data\n");
+
+        return NULL;
+    }
+
+    return NULL;
+}
+
 static void *command_func_program_end(void *context, int index, void **arg)
 {
     int *program_end_flag = (int *)context;
@@ -1585,10 +1648,11 @@ int main(int argc, char **argv)
     int messenger_port_number = 0;
     char *loudness_log_path = NULL;
     char *av_record_path = NULL;
+    char *epg_xml_path = NULL;
     ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
                      lircd_socket_name, &lircd_socket_name_count,
                      &sqlite_database_name, &messenger_port_number,
-                     &loudness_log_path, &av_record_path);
+                     &loudness_log_path, &av_record_path, &epg_xml_path);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -1677,11 +1741,50 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    EpgContext epg_context[IPC_SOCKET_COUNT];
+    for (int i = 0; i < ipc_socket_name_count; i++)
+    {
+        char name[128];
+        snprintf(name, sizeof(name), "%s/apollo_record%d.xml", epg_xml_path, i);
+
+        ret = epg_init(name, &epg_context[i]);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not initialize EPG\n");
+
+            for (int j = 0; j < i; j++)
+            {
+                epg_uninit(&epg_context[j]);
+            }
+
+            messenger_uninit(&messenger_context);
+
+            database_uninit(&database_context);
+
+            for (int i = 0; i < lircd_socket_name_count; i++)
+            {
+                irremote_uninit(&irremote_context[i]);
+            }
+
+            for (int i = 0; i < ipc_socket_name_count; i++)
+            {
+                ipc_uninit(&ipc_context[i]);
+            }
+
+            return -1;
+        }
+    }
+
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     ret = fcntl(STDIN_FILENO, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
         fprintf(stderr, "Could not set stdin flag\n");
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            epg_uninit(&epg_context[i]);
+        }
 
         messenger_uninit(&messenger_context);
 
@@ -1708,6 +1811,11 @@ int main(int argc, char **argv)
 
         ret = fcntl(STDIN_FILENO, F_GETFL, 0);
         fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+        for (int i = 0; i < ipc_socket_name_count; i++)
+        {
+            epg_uninit(&epg_context[i]);
+        }
 
         messenger_uninit(&messenger_context);
 
@@ -2983,6 +3091,8 @@ int main(int argc, char **argv)
                             0, 0, 0},
                     {"schedule", command_func_schedule_print, &schedule,
                             0, 0, 0},
+                    {"epg", command_func_epg_print, epg_context,
+                            1, ipc_socket_name_count, 1},
                     {"end", command_func_program_end, &program_end_flag,
                             0, 0, 0},
                     {NULL, NULL, NULL, 0, 0, 0}
@@ -3048,6 +3158,11 @@ int main(int argc, char **argv)
 
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
+
+    for (int i = 0; i < ipc_socket_name_count; i++)
+    {
+        epg_uninit(&epg_context[i]);
+    }
 
     database_uninit(&database_context);
 
