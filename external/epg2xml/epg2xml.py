@@ -941,20 +941,23 @@ except ValueError:
 parser = argparse.ArgumentParser(description = 'EPG 정보를 출력하는 방법을 선택한다')
 argu1 = parser.add_argument_group(description = 'IPTV 선택')
 argu1.add_argument('-i', dest = 'MyISP', choices = ['ALL', 'KT', 'LG', 'SK'], help = '사용하는 IPTV : ALL, KT, LG, SK', default = MyISP)
-argu2 = parser.add_mutually_exclusive_group()
-argu2.add_argument('-v', '--version', action = 'version', version = '%(prog)s version : ' + __version__)
-argu2.add_argument('-d', '--display', action = 'store_true', help = 'EPG 정보 화면출력')
-argu2.add_argument('-o', '--outfile', metavar = default_xml_file, nargs = '?', const = default_xml_file, help = 'EPG 정보 저장')
-argu2.add_argument('-s', '--socket', metavar = default_xml_socket, nargs = '?', const = default_xml_socket, help = 'xmltv.sock(External: XMLTV)로 EPG정보 전송')
-argu3 = parser.add_argument_group('추가옵션')
-argu3.add_argument('--icon', dest = 'icon', metavar = "http://www.example.com/icon", help = '채널 아이콘 URL, 기본값: '+ default_icon_url, default = default_icon_url)
-argu3.add_argument('-l', '--limit', dest = 'limit', type=int, metavar = "1-7", choices = range(1,8), help = 'EPG 정보를 가져올 기간, 기본값: '+ str(default_fetch_limit), default = default_fetch_limit)
-argu3.add_argument('--rebroadcast', dest = 'rebroadcast', metavar = 'y, n', choices = 'yn', help = '제목에 재방송 정보 출력', default = default_rebroadcast)
-argu3.add_argument('--episode', dest = 'episode', metavar = 'y, n', choices = 'yn', help = '제목에 회차 정보 출력', default = default_episode)
-argu3.add_argument('--verbose', dest = 'verbose', metavar = 'y, n', choices = 'yn', help = 'EPG 정보 추가 출력', default = default_verbose)
+argu2 = parser.add_argument_group(description = 'Channel 선택')
+argu2.add_argument('-c', dest = 'MyChannels', metavar = 'ID,...', nargs = '?', help = 'EPG 정보 가져오는 채널 ID', default = MyChannels)
+argu3 = parser.add_mutually_exclusive_group()
+argu3.add_argument('-v', '--version', action = 'version', version = '%(prog)s version : ' + __version__)
+argu3.add_argument('-d', '--display', action = 'store_true', help = 'EPG 정보 화면출력')
+argu3.add_argument('-o', '--outfile', metavar = default_xml_file, nargs = '?', const = default_xml_file, help = 'EPG 정보 저장')
+argu3.add_argument('-s', '--socket', metavar = default_xml_socket, nargs = '?', const = default_xml_socket, help = 'xmltv.sock(External: XMLTV)로 EPG정보 전송')
+argu4 = parser.add_argument_group('추가옵션')
+argu4.add_argument('--icon', dest = 'icon', metavar = "http://www.example.com/icon", help = '채널 아이콘 URL, 기본값: '+ default_icon_url, default = default_icon_url)
+argu4.add_argument('-l', '--limit', dest = 'limit', type=int, metavar = "1-7", choices = range(1,8), help = 'EPG 정보를 가져올 기간, 기본값: '+ str(default_fetch_limit), default = default_fetch_limit)
+argu4.add_argument('--rebroadcast', dest = 'rebroadcast', metavar = 'y, n', choices = 'yn', help = '제목에 재방송 정보 출력', default = default_rebroadcast)
+argu4.add_argument('--episode', dest = 'episode', metavar = 'y, n', choices = 'yn', help = '제목에 회차 정보 출력', default = default_episode)
+argu4.add_argument('--verbose', dest = 'verbose', metavar = 'y, n', choices = 'yn', help = 'EPG 정보 추가 출력', default = default_verbose)
 
 args = parser.parse_args()
 if args.MyISP : MyISP = args.MyISP
+if args.MyChannels : MyChannels = args.MyChannels
 if args.display :
     default_output = "d"
 elif args.outfile :
