@@ -2146,69 +2146,80 @@ int main(int argc, char **argv)
                                                     messenger_recv_message.data;
                         for (int i = 0; i < messenger_recv_message.count; i++)
                         {
-                            if (data[i].index < lircd_socket_name_count)
+                            if (data[i].index < ipc_socket_name_count &&
+                                data[i].channel ==
+                                status[data[i].index].channel)
                             {
-                                ret = channel_change(irremote_context,
-                                                     data[i].index,
-                                                     data[i].channel);
-                                if (ret != 0)
+                                printf("Same channel\n");
+                            }
+                            else
+                            {
+                                if (data[i].index < lircd_socket_name_count)
                                 {
-                                    fprintf(stderr,
-                                            "Could not change channel\n");
-                                }
-                                else
-                                {
-                                    if (data[i].index < ipc_socket_name_count)
+                                    ret = channel_change(irremote_context,
+                                                         data[i].index,
+                                                         data[i].channel);
+                                    if (ret != 0)
                                     {
-                                        status[data[i].index].channel =
+                                        fprintf(stderr,
+                                                "Could not change channel\n");
+                                    }
+                                    else
+                                    {
+                                        if (data[i].index <
+                                            ipc_socket_name_count)
+                                        {
+                                            status[data[i].index].channel =
                                                                 data[i].channel;
+                                        }
                                     }
                                 }
-                            }
 
-                            if (data[i].index < ipc_socket_name_count)
-                            {
-                                ret = loudness_log_end(ipc_context,
-                                                       data[i].index);
-                                if (ret == 0)
+                                if (data[i].index < ipc_socket_name_count)
                                 {
-                                    float uptime;
-                                    uptime = (float)(get_usec() - start_usec) /
-                                             1000000;
+                                    ret = loudness_log_end(ipc_context,
+                                                           data[i].index);
+                                    if (ret == 0)
+                                    {
+                                        float uptime;
+                                        uptime = (float)(get_usec() -
+                                                 start_usec) / 1000000;
 
-                                    printf("[%.3f] %d, Loudness log end\n",
-                                           uptime, data[i].index);
-                                }
+                                        printf("[%.3f] %d, Loudness log end\n",
+                                               uptime, data[i].index);
+                                    }
 
-                                ret = loudness_reset(ipc_context,
-                                                     data[i].index);
-                                if (ret != 0)
-                                {
-                                    fprintf(stderr,
-                                            "Could not reset loudness\n");
-                                }
+                                    ret = loudness_reset(ipc_context,
+                                                         data[i].index);
+                                    if (ret != 0)
+                                    {
+                                        fprintf(stderr,
+                                                "Could not reset loudness\n");
+                                    }
 
-                                LogList log_list;
-                                ret = loudness_log_start(ipc_context,
-                                                data[i].index,
-                                                status[data[i].index].channel,
-                                                loudness_log_path, &log_list);
-                                if (ret == 0)
-                                {
-                                    float uptime;
-                                    uptime = (float)(get_usec() - start_usec) /
-                                             1000000;
+                                    LogList log_list;
+                                    ret = loudness_log_start(ipc_context,
+                                                  data[i].index,
+                                                  status[data[i].index].channel,
+                                                  loudness_log_path, &log_list);
+                                    if (ret == 0)
+                                    {
+                                        float uptime;
+                                        uptime = (float)(get_usec() -
+                                                 start_usec) / 1000000;
 
-                                    printf("[%.3f] %d, Loudness log start\n",
-                                           uptime, data[i].index);
-                                }
+                                        printf("[%.3f] %d, Loudness log "
+                                               "start\n", uptime,
+                                               data[i].index);
+                                    }
 
-                                ret = save_log_list_data(&database_context,
-                                                         &log_list, 1);
-                                if (ret != 0)
-                                {
-                                    fprintf(stderr, "Could not save "
-                                                    "log list data\n");
+                                    ret = save_log_list_data(&database_context,
+                                                             &log_list, 1);
+                                    if (ret != 0)
+                                    {
+                                        fprintf(stderr, "Could not save "
+                                                        "log list data\n");
+                                    }
                                 }
                             }
                         }
@@ -2888,45 +2899,58 @@ int main(int argc, char **argv)
                                        &current_schedule);
             if (ret == 0 && !status[i].recording)
             {
-                if (i < lircd_socket_name_count)
+                if (current_schedule->channel == status[i].channel)
                 {
-                    ret = channel_change(irremote_context,
-                                         i,
-                                         current_schedule->channel);
+                    printf("Same channel\n");
+                }
+                else
+                {
+                    if (i < lircd_socket_name_count)
+                    {
+                        ret = channel_change(irremote_context,
+                                             i,
+                                             current_schedule->channel);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not change AV record channel\n");
+                        }
+                        else
+                        {
+                            status[i].channel = current_schedule->channel;
+                        }
+                    }
+
+                    ret = loudness_log_end(ipc_context, i);
+                    if (ret == 0)
+                    {
+                        float uptime;
+                        uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                        printf("[%.3f] %d, Loudness log end\n", uptime, i);
+                    }
+
+                    ret = loudness_reset(ipc_context, i);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not change AV record channel\n");
+                        fprintf(stderr, "Could not reset loudness\n");
                     }
-                    else
+
+                    LogList log_list;
+                    ret = loudness_log_start(ipc_context, i, status[i].channel,
+                                             loudness_log_path, &log_list);
+                    if (ret == 0)
                     {
-                        status[i].channel = current_schedule->channel;
+                        float uptime;
+                        uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                        printf("[%.3f] %d, Loudness log start\n", uptime, i);
                     }
-                }
 
-                ret = loudness_log_end(ipc_context, i);
-                if (ret == 0)
-                {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    printf("[%.3f] %d, Loudness log end\n", uptime, i);
-                }
-
-                ret = loudness_reset(ipc_context, i);
-                if (ret != 0)
-                {
-                    fprintf(stderr, "Could not reset loudness\n");
-                }
-
-                LogList log_list;
-                ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                         loudness_log_path, &log_list);
-                if (ret == 0)
-                {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    printf("[%.3f] %d, Loudness log start\n", uptime, i);
+                    ret = save_log_list_data(&database_context, &log_list, 1);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save log list data\n");
+                    }
                 }
 
                 PlaybackList playback_list;
@@ -2944,13 +2968,6 @@ int main(int argc, char **argv)
                     status[i].recording = 1;
                 }
 
-                ret = save_status_data(&database_context, status,
-                                       ipc_socket_name_count);
-                if (ret != 0)
-                {
-                    fprintf(stderr, "Could not save status data\n");
-                }
-
                 ret = save_playback_list_data(&database_context, &playback_list,
                                               1);
                 if (ret != 0)
@@ -2958,10 +2975,11 @@ int main(int argc, char **argv)
                     fprintf(stderr, "Could not save playback list data\n");
                 }
 
-                ret = save_log_list_data(&database_context, &log_list, 1);
+                ret = save_status_data(&database_context, status,
+                                       ipc_socket_name_count);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not save log list data\n");
+                    fprintf(stderr, "Could not save status data\n");
                 }
             }
             else if (ret != 0 && status[i].recording)
