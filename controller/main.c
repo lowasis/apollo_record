@@ -2271,6 +2271,15 @@ int main(int argc, char **argv)
 
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
+        if (i < lircd_socket_name_count)
+        {
+            ret = channel_change(irremote_context, i, status[i].channel);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not change channel\n");
+            }
+        }
+
         LogList log_list;
         ret = loudness_log_start(ipc_context, i, status[i].channel,
                                  loudness_log_path, &log_list);
