@@ -69,10 +69,32 @@ typedef struct UserLoudnessSection {
     char comment[128];
 } UserLoudnessSection;
 
+typedef struct Epg {
+    int index;
+    int channel;
+    char name[128];
+    time_t start;
+    time_t end;
+} Epg;
+
 typedef struct ChannelChangeThreadArg {
     IrRemoteContext *context;
     int channel;
 } ChannelChangeThreadArg;
+
+typedef struct EpgRequestCallbackArg {
+    pthread_mutex_t *mutex;
+    int index;
+    Epg **epg;
+    int *epg_count;
+} EpgRequestCallbackArg;
+
+typedef struct CommandFuncEpgPrintContext {
+    pthread_mutex_t *mutex;
+    Epg *epg;
+    int epg_count;
+    int index_count;
+} CommandFuncEpgPrintContext;
 
 
 static void print_usage(char *name)
@@ -356,6 +378,68 @@ static int get_current_schedule(Schedule *schedule, int index,
     return 0;
 }
 
+static int get_current_epg(pthread_mutex_t *mutex, Epg *epg, int epg_count,
+                           int index, time_t unixtime, Epg *current_epg)
+{
+    int ret;
+
+    ret = pthread_mutex_lock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not lock mutex\n");
+
+        return -1;
+    }
+
+    if (!epg || !current_epg)
+    {
+        ret = pthread_mutex_unlock(mutex);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not unlock mutex\n");
+
+            return -1;
+        }
+
+        return -1;
+    }
+
+    int i;
+    for (i = 0; i < epg_count; i++)
+    {
+        if (epg[i].index == index && epg[i].start <= unixtime &&
+            unixtime < epg[i].end)
+        {
+            memcpy(current_epg, &epg[i], sizeof(Epg));
+
+            break;
+        }
+    }
+
+    if (i == epg_count)
+    {
+        ret = pthread_mutex_unlock(mutex);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not unlock mutex\n");
+
+            return -1;
+        }
+
+        return -1;
+    }
+
+    ret = pthread_mutex_unlock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not unlock mutex\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int convert_localtime_str_to_unixtime(char *str, time_t *unixtime)
 {
     if (!str || !unixtime)
@@ -419,32 +503,6 @@ static int remove_non_filename_character(char *str, int size)
             }
         }
     }
-
-    return 0;
-}
-
-static int epg_request_data_callback(EpgContext *context, int channel,
-                                     void *arg)
-{
-    int ret;
-
-    EpgData *data;
-    int count;
-    ret = epg_receive_data(context, &data, &count);
-    if (ret != 0)
-    {
-        fprintf(stderr, "Could not receive EPG data\n");
-
-        return -1;
-    }
-
-    printf("Channel %d\n", channel);
-    for (int i = 0; i < count; i++)
-    {
-        printf("%s, %s, %s\n", data[i].title, data[i].start, data[i].stop);
-    }
-
-    free(data);
 
     return 0;
 }
@@ -1381,6 +1439,222 @@ static int send_ack_message(MessengerContext *context, char *ip, int number)
     return 0;
 }
 
+static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
+                      EpgData *data, int data_count, Epg **epg, int *epg_count)
+{
+    int ret;
+
+    ret = pthread_mutex_lock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not lock mutex\n");
+
+        return -1;
+    }
+
+    *epg = (Epg *)realloc(*epg, sizeof(Epg) * (*epg_count + data_count));
+    if (!*epg)
+    {
+        fprintf(stderr, "Could not reallocate EPG buffer\n");
+
+        ret = pthread_mutex_unlock(mutex);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not unlock mutex\n");
+
+            return -1;
+        }
+
+        return -1;
+    }
+
+    int count = 0;
+    for (int i = 0; i < data_count; i++)
+    {
+        (*epg)[*epg_count + count].index = index;
+        (*epg)[*epg_count + count].channel = channel;
+        strncpy((*epg)[*epg_count + count].name, data[i].title,
+                sizeof((*epg)[*epg_count + count].name));
+
+        struct tm t;
+        if (!strptime(data[i].start, "%Y%m%d%H%M%S", &t))
+        {
+            fprintf(stderr, "Could not strptime\n");
+
+            continue;
+        }
+        (*epg)[*epg_count + count].start = mktime(&t);
+
+        if (!strptime(data[i].stop, "%Y%m%d%H%M%S", &t))
+        {
+            fprintf(stderr, "Could not strptime\n");
+
+            continue;
+        }
+        (*epg)[*epg_count + count].end = mktime(&t);
+
+        count++;
+    }
+
+    *epg_count += count;
+
+    ret = pthread_mutex_unlock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not unlock mutex\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static int epg_delete(pthread_mutex_t *mutex, int index, Epg **epg,
+                      int *epg_count)
+{
+    int ret;
+
+    ret = pthread_mutex_lock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not lock mutex\n");
+
+        return -1;
+    }
+
+    if (*epg)
+    {
+        int count = 0;
+        for (int i = 0; i < *epg_count; i++)
+        {
+            if (index != (*epg)[i].index)
+            {
+                count++;
+            }
+        }
+
+        if (count != *epg_count)
+        {
+            Epg *new_epg = (Epg *)malloc(sizeof(Epg) * count);
+            if (!new_epg)
+            {
+                fprintf(stderr, "Could not allocate new EPG buffer\n");
+
+                ret = pthread_mutex_unlock(mutex);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not unlock mutex\n");
+
+                    return -1;
+                }
+
+                return -1;
+            }
+
+            for (int i = 0, j = 0; i < *epg_count; i++)
+            {
+                if (index != (*epg)[i].index)
+                {
+                    memcpy(&new_epg[j], &(*epg)[i], sizeof(Epg));
+                    j++;
+                }
+            }
+
+            free(*epg);
+
+            *epg = new_epg;
+            *epg_count = count;
+        }
+    }
+
+    ret = pthread_mutex_unlock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not unlock mutex\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+static int epg_request_callback(EpgContext *context, int channel, void *arg)
+{
+    int ret;
+
+    pthread_mutex_t *mutex = ((EpgRequestCallbackArg *)arg)->mutex;
+    int index = ((EpgRequestCallbackArg *)arg)->index;
+    Epg **epg = ((EpgRequestCallbackArg *)arg)->epg;
+    int *epg_count = ((EpgRequestCallbackArg *)arg)->epg_count;
+
+    free(arg);
+
+    EpgData *data;
+    int count;
+    ret = epg_receive_data(context, &data, &count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not receive EPG data\n");
+
+        return -1;
+    }
+
+    ret = epg_delete(mutex, index, epg, epg_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not delete EPG\n");
+
+        return -1;
+    }
+
+    ret = epg_insert(mutex, index, channel, data, count, epg, epg_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not insert EPG\n");
+
+        return -1;
+    }
+
+    printf("data_count = %d, epg_count = %d\n", count, *epg_count);
+
+    free(data);
+
+    return 0;
+}
+
+static int epg_request(EpgContext *context, pthread_mutex_t *mutex, int index,
+                       int channel, Epg **epg, int *epg_count)
+{
+    int ret;
+
+    EpgRequestCallbackArg *arg;
+    arg = (EpgRequestCallbackArg *)malloc(sizeof(EpgRequestCallbackArg));
+    if (!arg)
+    {
+        fprintf(stderr, "Could not allocate EPG request callback arg buffer\n");
+
+        return -1;
+    }
+
+    arg->mutex = mutex;
+    arg->index = index;
+    arg->epg = epg;
+    arg->epg_count = epg_count;
+
+    ret = epg_request_data(&context[index], channel, epg_request_callback,
+                           arg);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not request EPG data\n");
+
+        free(arg);
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static void *command_func_channel_change(void *context, int index, void **arg)
 {
     int ret;
@@ -1598,7 +1872,33 @@ static void *command_func_schedule_print(void *context, int index, void **arg)
     }
 }
 
-static void *command_func_epg_print(void *context, int index, void **arg)
+static int command_func_epg_request_callback(EpgContext *context, int channel,
+                                             void *arg)
+{
+    int ret;
+
+    EpgData *data;
+    int count;
+    ret = epg_receive_data(context, &data, &count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not receive EPG data\n");
+
+        return -1;
+    }
+
+    printf("Channel %d\n", channel);
+    for (int i = 0; i < count; i++)
+    {
+        printf("%s, %s, %s\n", data[i].title, data[i].start, data[i].stop);
+    }
+
+    free(data);
+
+    return 0;
+}
+
+static void *command_func_epg_request(void *context, int index, void **arg)
 {
     int ret;
 
@@ -1616,7 +1916,7 @@ static void *command_func_epg_print(void *context, int index, void **arg)
     }
 
     ret = epg_request_data(&epg_context[index], number,
-                           epg_request_data_callback, NULL);
+                           command_func_epg_request_callback, NULL);
     if (ret != 0)
     {
         fprintf(stderr, "Could not request EPG data\n");
@@ -1625,6 +1925,96 @@ static void *command_func_epg_print(void *context, int index, void **arg)
     }
 
     return NULL;
+}
+
+static void *command_func_epg_print(void *context, int index, void **arg)
+{
+    int ret;
+
+    pthread_mutex_t *mutex = ((CommandFuncEpgPrintContext *)context)->mutex;
+    Epg *epg = ((CommandFuncEpgPrintContext *)context)->epg;
+    int epg_count = ((CommandFuncEpgPrintContext *)context)->epg_count;
+    int index_count = ((CommandFuncEpgPrintContext *)context)->index_count;
+
+    printf("epg_count = %d\n", epg_count);
+
+    ret = pthread_mutex_lock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not lock mutex\n");
+
+        return NULL;
+    }
+
+    printf("Total program :\n");
+    if (epg)
+    {
+        for (int i = 0; i < epg_count; i++)
+        {
+            char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+            ret = convert_unixtime_to_localtime_str(epg[i].start, start,
+                                                    sizeof(start));
+            if (ret != 0)
+            {
+                strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+            }
+
+            char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+            ret = convert_unixtime_to_localtime_str(epg[i].end, end,
+                                                    sizeof(end));
+            if (ret != 0)
+            {
+                strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+            }
+
+            printf("Index %d, Channel %d, Name %s, Start %ld(%s), End %ld(%s)\n",
+                   epg[i].index, epg[i].channel, epg[i].name, epg[i].start,
+                   start, epg[i].end, end);
+        }
+    }
+
+    printf("Current program :\n");
+    if (epg)
+    {
+        for (int i = 0; i < index_count; i++)
+        {
+            Epg ret_epg;
+            ret = get_current_epg(mutex, epg, epg_count, i, time(NULL),
+                                  &ret_epg);
+            if (ret == 0)
+            {
+                char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(ret_epg.start, start,
+                                                        sizeof(start));
+                if (ret != 0)
+                {
+                    strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+                }
+
+                char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(ret_epg.end, end,
+                                                        sizeof(end));
+                if (ret != 0)
+                {
+                    strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+                }
+
+                printf("Index %d, Channel %d, Name %s, Start %ld(%s), "
+                       "End %ld(%s)\n", ret_epg.index, ret_epg.channel,
+                       ret_epg.name, ret_epg.start, start, ret_epg.end, end);
+            }
+        }
+    }
+
+    ret = pthread_mutex_unlock(mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not unlock mutex\n");
+
+        return NULL;
+    }
+
+    return 0;
 }
 
 static void *command_func_program_end(void *context, int index, void **arg)
@@ -1839,6 +2229,18 @@ int main(int argc, char **argv)
     Status status[IPC_SOCKET_COUNT] = {0,};
 
     Schedule *schedule = NULL;
+    Schedule current_schedule[IPC_SOCKET_COUNT] = {0,};
+
+    Epg *epg = NULL;
+    int epg_count = 0;
+    Epg current_epg[IPC_SOCKET_COUNT] = {0,};
+
+    pthread_mutexattr_t epg_mutex_attr;
+    pthread_mutexattr_init(&epg_mutex_attr);
+    pthread_mutexattr_settype(&epg_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+
+    pthread_mutex_t epg_mutex;
+    pthread_mutex_init(&epg_mutex, &epg_mutex_attr);
 
     char line_buffer[LINE_BUFFER_SIZE] = {0,};
     int line_buffer_index = 0;
@@ -1848,6 +2250,8 @@ int main(int argc, char **argv)
 
     uint64_t status_send_usec = 0;
     int status_send_flag = 0;
+
+    uint64_t epg_request_usec = 0;
 
     int program_end_flag = 0;
 
@@ -2219,6 +2623,16 @@ int main(int argc, char **argv)
                                     {
                                         fprintf(stderr, "Could not save "
                                                         "log list data\n");
+                                    }
+
+                                    ret = epg_request(epg_context, &epg_mutex,
+                                                      data[i].index,
+                                                      data[i].channel, &epg,
+                                                      &epg_count);
+                                    if (ret != 0)
+                                    {
+                                        fprintf(stderr,
+                                                "Could not request epg\n");
                                     }
                                 }
                             }
@@ -2892,34 +3306,272 @@ int main(int argc, char **argv)
             status_send_usec = get_usec();
         }
 
+        diff_usec = get_usec() - epg_request_usec;
+        if (EPG_REQUEST_PERIOD_SEC <= (diff_usec / 1000000))
+        {
+            for (int i = 0; i < ipc_socket_name_count; i++)
+            {
+                ret = epg_request(epg_context, &epg_mutex, i, status[i].channel,
+                                  &epg, &epg_count);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not request epg\n");
+                }
+            }
+
+            epg_request_usec = get_usec();
+        }
+
         for (int i = 0; i < ipc_socket_name_count; i++)
         {
-            Schedule *current_schedule;
+            Schedule *ret_schedule;
             ret = get_current_schedule(schedule, i, time(NULL),
-                                       &current_schedule);
-            if (ret == 0 && !status[i].recording)
+                                       &ret_schedule);
+            if (ret == 0)
             {
-                if (current_schedule->channel == status[i].channel)
+                if (current_schedule[i].start != ret_schedule->start)
                 {
-                    printf("Same channel\n");
-                }
-                else
-                {
-                    if (i < lircd_socket_name_count)
+                    char start1[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(
+                                                      current_schedule[i].start,
+                                                      start1, sizeof(start1));
+                    if (ret != 0)
                     {
-                        ret = channel_change(irremote_context,
-                                             i,
-                                             current_schedule->channel);
+                        strncpy(start1, "1970-01-01 00:00:00", sizeof(start1));
+                    }
+
+                    char end1[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(
+                                                        current_schedule[i].end,
+                                                        end1, sizeof(end1));
+                    if (ret != 0)
+                    {
+                        strncpy(end1, "1970-01-01 00:00:00", sizeof(end1));
+                    }
+
+                    char start2[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(ret_schedule->start,
+                                                            start2,
+                                                            sizeof(start2));
+                    if (ret != 0)
+                    {
+                        strncpy(start2, "1970-01-01 00:00:00", sizeof(start2));
+                    }
+
+                    char end2[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(ret_schedule->end,
+                                                            end2, sizeof(end2));
+                    if (ret != 0)
+                    {
+                        strncpy(end2, "1970-01-01 00:00:00", sizeof(end2));
+                    }
+
+                    printf("New schedule ~ %d, %s %s %d -> %s %s %d\n", i,
+                           start1, end1, current_schedule[i].channel,
+                           start2, end2, ret_schedule->channel);
+                }
+
+                if (current_schedule[i].start != ret_schedule->start)
+                {
+                    if (ret_schedule->channel == status[i].channel)
+                    {
+                        printf("Same channel\n");
+                    }
+                    else
+                    {
+                        if (i < lircd_socket_name_count)
+                        {
+                            ret = channel_change(irremote_context,
+                                                 i, ret_schedule->channel);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr,
+                                        "Could not change AV record channel\n");
+                            }
+                            else
+                            {
+                                status[i].channel = ret_schedule->channel;
+                            }
+                        }
+
+                        ret = loudness_log_end(ipc_context, i);
+                        if (ret == 0)
+                        {
+                            float uptime;
+                            uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                            printf("[%.3f] %d, Loudness log end\n", uptime, i);
+                        }
+
+                        ret = loudness_reset(ipc_context, i);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not change AV record channel\n");
+                            fprintf(stderr, "Could not reset loudness\n");
                         }
-                        else
+
+                        LogList log_list;
+                        ret = loudness_log_start(ipc_context, i,
+                                                 status[i].channel,
+                                                 loudness_log_path, &log_list);
+                        if (ret == 0)
                         {
-                            status[i].channel = current_schedule->channel;
+                            float uptime;
+                            uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                            printf("[%.3f] %d, Loudness log start\n", uptime,
+                                   i);
+                        }
+
+                        ret = save_log_list_data(&database_context, &log_list,
+                                                 1);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not save log list data\n");
+                        }
+
+                        ret = epg_request(epg_context, &epg_mutex, i,
+                                          ret_schedule->channel, &epg,
+                                          &epg_count);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not request epg\n");
                         }
                     }
 
+                    PlaybackList playback_list;
+                    ret = av_record_start(ipc_context, i, ret_schedule->start,
+                                          ret_schedule->end,
+                                          ret_schedule->channel,
+                                          av_record_path, &playback_list);
+                    if (ret == 0)
+                    {
+                        float uptime;
+                        uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                        printf("[%.3f] %d, AV record start\n", uptime, i);
+
+                        status[i].recording = 1;
+                    }
+
+                    ret = save_playback_list_data(&database_context,
+                                                  &playback_list, 1);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save playback list data\n");
+                    }
+
+                    ret = save_status_data(&database_context, status,
+                                           ipc_socket_name_count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save status data\n");
+                    }
+
+                    memcpy(&current_schedule[i], ret_schedule,
+                           sizeof(Schedule));
+                }
+            }
+            else if (ret != 0 && status[i].recording)
+            {
+                char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(
+                                                  current_schedule[i].start,
+                                                  start, sizeof(start));
+                if (ret != 0)
+                {
+                    strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+                }
+
+                char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                ret = convert_unixtime_to_localtime_str(
+                                                    current_schedule[i].end,
+                                                    end, sizeof(end));
+                if (ret != 0)
+                {
+                    strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+                }
+
+                printf("End schedule ~ %d, %s %s %d\n", i,
+                       start, end, current_schedule[i].channel);
+
+                ret = av_record_end(ipc_context, i);
+                if (ret == 0)
+                {
+                    float uptime;
+                    uptime = (float)(get_usec() - start_usec) / 1000000;
+
+                    printf("[%.3f] %d, AV record end\n", uptime, i);
+
+                    status[i].recording = 0;
+                }
+
+                ret = save_status_data(&database_context, status,
+                                       ipc_socket_name_count);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not save status data\n");
+                }
+            }
+
+            Epg ret_epg;
+            ret = get_current_epg(&epg_mutex, epg, epg_count, i, time(NULL),
+                                  &ret_epg);
+            if (ret == 0)
+            {
+                if (current_epg[i].start != ret_epg.start)
+                {
+                    char start1[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(
+                                                        current_epg[i].start,
+                                                        start1, sizeof(start1));
+                    if (ret != 0)
+                    {
+                        strncpy(start1, "1970-01-01 00:00:00", sizeof(start1));
+                    }
+
+                    char end1[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(current_epg[i].end,
+                                                        end1, sizeof(end1));
+                    if (ret != 0)
+                    {
+                        strncpy(end1, "1970-01-01 00:00:00", sizeof(end1));
+                    }
+
+                    char start2[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(ret_epg.start,
+                                                            start2,
+                                                            sizeof(start2));
+                    if (ret != 0)
+                    {
+                        strncpy(start2, "1970-01-01 00:00:00", sizeof(start2));
+                    }
+
+                    char end2[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+                    ret = convert_unixtime_to_localtime_str(ret_epg.end,
+                                                            end2, sizeof(end2));
+                    if (ret != 0)
+                    {
+                        strncpy(end2, "1970-01-01 00:00:00", sizeof(end2));
+                    }
+
+                    printf("New program ~ %d, %s %s %s %d -> %s %s %s %d\n", i,
+                           current_epg[i].name, start1, end1,
+                           current_epg[i].channel, ret_epg.name, start2, end2,
+                           ret_epg.channel);
+                }
+
+                if (ret_epg.channel != current_epg[i].channel)
+                {
+                    memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
+                }
+
+                if (ret_epg.start == current_schedule[i].start)
+                {
+                    memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
+                }
+
+                if (current_epg[i].start != ret_epg.start)
+                {
                     ret = loudness_log_end(ipc_context, i);
                     if (ret == 0)
                     {
@@ -2951,55 +3603,40 @@ int main(int argc, char **argv)
                     {
                         fprintf(stderr, "Could not save log list data\n");
                     }
-                }
 
-                PlaybackList playback_list;
-                ret = av_record_start(ipc_context, i, current_schedule->start,
-                                      current_schedule->end,
-                                      current_schedule->channel,
-                                      av_record_path, &playback_list);
-                if (ret == 0)
-                {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
+                    if (status[i].recording)
+                    {
+                        PlaybackList playback_list;
+                        ret = av_record_start(ipc_context, i,
+                                              current_schedule[i].start,
+                                              current_schedule[i].end,
+                                              current_schedule[i].channel,
+                                              av_record_path, &playback_list);
+                        if (ret == 0)
+                        {
+                            float uptime;
+                            uptime = (float)(get_usec() - start_usec) / 1000000;
 
-                    printf("[%.3f] %d, AV record start\n", uptime, i);
+                            printf("[%.3f] %d, AV record start\n", uptime, i);
+                        }
 
-                    status[i].recording = 1;
-                }
+                        ret = save_playback_list_data(&database_context,
+                                                      &playback_list, 1);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr,
+                                    "Could not save playback list data\n");
+                        }
 
-                ret = save_playback_list_data(&database_context, &playback_list,
-                                              1);
-                if (ret != 0)
-                {
-                    fprintf(stderr, "Could not save playback list data\n");
-                }
+                        ret = save_status_data(&database_context, status,
+                                               ipc_socket_name_count);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not save status data\n");
+                        }
+                    }
 
-                ret = save_status_data(&database_context, status,
-                                       ipc_socket_name_count);
-                if (ret != 0)
-                {
-                    fprintf(stderr, "Could not save status data\n");
-                }
-            }
-            else if (ret != 0 && status[i].recording)
-            {
-                ret = av_record_end(ipc_context, i);
-                if (ret == 0)
-                {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    printf("[%.3f] %d, AV record end\n", uptime, i);
-
-                    status[i].recording = 0;
-                }
-
-                ret = save_status_data(&database_context, status,
-                                       ipc_socket_name_count);
-                if (ret != 0)
-                {
-                    fprintf(stderr, "Could not save status data\n");
+                    memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
                 }
             }
         }
@@ -3089,6 +3726,13 @@ int main(int argc, char **argv)
                     }
                 }
 
+                CommandFuncEpgPrintContext command_func_epg_print_ctx = {
+                    &epg_mutex,
+                    epg,
+                    epg_count,
+                    ipc_socket_name_count
+                };
+
                 const struct {
                     char *command;
                     void *(*func)(void *context, int index, void **arg);
@@ -3109,8 +3753,10 @@ int main(int argc, char **argv)
                             0, 0, 0},
                     {"schedule", command_func_schedule_print, &schedule,
                             0, 0, 0},
-                    {"epg", command_func_epg_print, epg_context,
+                    {"epg_request", command_func_epg_request, epg_context,
                             1, ipc_socket_name_count, 1},
+                    {"epg", command_func_epg_print, &command_func_epg_print_ctx,
+                            0, 0, 0},
                     {"end", command_func_program_end, &program_end_flag,
                             0, 0, 0},
                     {NULL, NULL, NULL, 0, 0, 0}
@@ -3173,6 +3819,8 @@ int main(int argc, char **argv)
 
         usleep(10 *1000);
     }
+
+    pthread_mutex_destroy(&epg_mutex);
 
     ret = fcntl(STDIN_FILENO, F_GETFL, 0);
     fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);

@@ -19,6 +19,8 @@ extern "C" {
 
 #define STATUS_SEND_PERIOD_MSEC         (200)
 
+#define EPG_REQUEST_PERIOD_SEC          (3600 * 12)
+
 #define SCHEDULE_SEND_LEADING_DAY       (2)
 
 #define LINE_BUFFER_SIZE                (128)
