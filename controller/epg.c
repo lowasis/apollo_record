@@ -24,6 +24,9 @@ typedef struct RequestDataThreadArg {
 } RequestDataThreadArg;
 
 
+static pthread_mutex_t libpython_mutex;
+
+
 static void *request_data_thread(void *arg)
 {
     int ret;
@@ -39,6 +42,14 @@ static void *request_data_thread(void *arg)
     void *callback_arg = ((RequestDataThreadArg *)arg)->callback_arg;
 
     free(arg);
+
+    ret = pthread_mutex_lock(&libpython_mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not lock mutex\n");
+
+        return NULL;
+    }
 
     Py_Initialize();
 
@@ -58,6 +69,14 @@ static void *request_data_thread(void *arg)
 
         Py_Finalize();
 
+        ret = pthread_mutex_unlock(&libpython_mutex);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not unlock mutex\n");
+
+            return NULL;
+        }
+
         return NULL;
     }
 
@@ -67,6 +86,14 @@ static void *request_data_thread(void *arg)
     }
 
     Py_Finalize();
+
+    ret = pthread_mutex_unlock(&libpython_mutex);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not unlock mutex\n");
+
+        return NULL;
+    }
 
     return NULL;
 }
@@ -557,6 +584,8 @@ int epg_init(char *name, EpgContext *context)
 
     strncpy(context->name, name, strlen(name) + 1);
 
+    pthread_mutex_init(&libpython_mutex, NULL);
+
     return 0;
 }
 
@@ -566,6 +595,8 @@ void epg_uninit(EpgContext *context)
     {
         return;
     }
+
+    pthread_mutex_destroy(&libpython_mutex);
 
     free(context->name);
 }
