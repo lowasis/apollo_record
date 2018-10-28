@@ -1,10 +1,10 @@
 #!/bin/bash
 
 channel_json_file="../../external/epg2xml/Channel.json"
-item_per_line=6
+item_per_line=2
 
-if [ "$#" -ne 4 ]; then
-    echo "Usage : $0 [isp_name={skb,kt,lgu}] [start_channel_number] [end_channel_number] [output_file_name]"
+if [ "$#" -ne 3 ]; then
+    echo "Usage : $0 [isp_name={skb,kt,lgu}] [start_channel_number] [end_channel_number]"
     exit
 fi
 
@@ -19,24 +19,39 @@ else
     exit
 fi
 
-echo "typedef struct ChannelTable {" > $4
-echo "    int channel;" >> $4
-echo "    int epg2xml_id;" >> $4
-echo "} ChannelTable;" >> $4
-echo "" >> $4
-echo "static const ChannelTable channel_table_$1[] = {" >> $4
+output_file_name="epg_channel_table_"$1".h"
+
+echo "#ifndef "`echo $output_file_name | tr '[a-z]' '[A-Z]' | tr '.' '_'` > $output_file_name
+echo "#define "`echo $output_file_name | tr '[a-z]' '[A-Z]' | tr '.' '_'` >> $output_file_name
+echo "" >> $output_file_name
+echo "#ifdef __cplusplus" >> $output_file_name
+echo "extern \"C\" {" >> $output_file_name
+echo "#endif" >> $output_file_name
+echo "" >> $output_file_name
+echo "#ifndef CHANNEL_TABLE" >> $output_file_name
+echo "#define CHANNEL_TABLE" >> $output_file_name
+echo "" >> $output_file_name
+echo "typedef struct ChannelTable {" >> $output_file_name
+echo "    int channel;" >> $output_file_name
+echo "    const char *channel_name;" >> $output_file_name
+echo "    int epg2xml_id;" >> $output_file_name
+echo "} ChannelTable;" >> $output_file_name
+echo "#endif" >> $output_file_name
+echo "" >> $output_file_name
+echo "static const ChannelTable channel_table_$1[] = {" >> $output_file_name
 
 count=0
 for ((i=$2;i<=$3;i++)); do
     str="\""$isp"Ch\": "$i", "
-    res=`grep "$str" $channel_json_file | line | sed -e 's/[{}]/''/g' | awk -F ', ' '{print $1}' | awk -F ' ' '{print $2}'`
-    if [[ -n $res ]]; then
+    channel_name=`grep "$str" $channel_json_file | line | sed -e 's/[{}]/''/g' | awk -F ', ' '{print $2}' | awk -F '"' '{print $4}'`
+    epg2xml_id=`grep "$str" $channel_json_file | line | sed -e 's/[{}]/''/g' | awk -F ', ' '{print $1}' | awk -F ' ' '{print $2}'`
+    if [[ -n $epg2xml_id ]]; then
         if [ $(($count%$item_per_line)) -eq 0 ]; then
-            echo -n "    {$i, $res}, " >> $4
+            echo -n "    {$i, \"$channel_name\", $epg2xml_id}, " >> $output_file_name
         elif [ $(($count%$item_per_line)) -eq $((item_per_line-1)) ]; then
-            echo "{$i, $res}," >> $4
+            echo "{$i, \"$channel_name\", $epg2xml_id}," >> $output_file_name
         else
-            echo -n "{$i, $res}, " >> $4
+            echo -n "{$i, \"$channel_name\", $epg2xml_id}, " >> $output_file_name
         fi
 
         count=$(($count+1))
@@ -44,7 +59,13 @@ for ((i=$2;i<=$3;i++)); do
 done
 
 if [ $(($count%$item_per_line)) -ne 0 ]; then
-echo "" >> $4
+echo "" >> $output_file_name
 fi
-echo "    {0, 0}" >> $4
-echo "};" >> $4
+echo "    {0, 0}" >> $output_file_name
+echo "};" >> $output_file_name
+echo "" >> $output_file_name
+echo "#ifdef __cplusplus" >> $output_file_name
+echo "}" >> $output_file_name
+echo "#endif" >> $output_file_name
+echo "" >> $output_file_name
+echo "#endif" >> $output_file_name
