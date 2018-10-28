@@ -3009,7 +3009,16 @@ int main(int argc, char **argv)
                                 sizeof(data[i].start));
                         strncpy(data[i].end, list[i].end, sizeof(data[i].end));
                         data[i].channel = list[i].channel;
+                        strncpy(data[i].channel_name, list[i].channel_name,
+                                sizeof(data[i].channel_name));
+                        strncpy(data[i].program_name, list[i].program_name,
+                                sizeof(data[i].program_name));
+                        strncpy(data[i].program_start, list[i].program_start,
+                                sizeof(data[i].program_start));
+                        strncpy(data[i].program_end, list[i].program_end,
+                                sizeof(data[i].program_end));
                         data[i].loudness = list[i].loudness;
+                        data[i].type = list[i].type;
                     }
 
                     if (list)

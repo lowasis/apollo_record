@@ -512,8 +512,57 @@ static int generate_playback_list_xml(MessengerMessage *message,
             return -1;
         }
 
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("channel_name"), "%s",
+                                                data[i].channel_name);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("program_name"), "%s",
+                                                data[i].program_name);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("program_start"), "%s",
+                                                data[i].program_start);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("program_end"),
+                                                "%s", data[i].program_end);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
         ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("loudness"),
                                                 "%2.1f", data[i].loudness);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("type"),
+                                                "%s", data[i].type ?
+                                                "user" : "record");
         if (ret < 0)
         {
             fprintf(stderr, "Could not write xml attribute\n");
