@@ -33,6 +33,7 @@ void epg_uninit(EpgContext *context);
 int epg_request_data(EpgContext *context, int channel,
                      EpgRequestDataCallback callback, void *callback_arg);
 int epg_receive_data(EpgContext *context, EpgData **data, int *count);
+int epg_get_channel_name(EpgContext *context, int channel, char **name);
 
 #ifdef __cplusplus
 }
