@@ -2469,6 +2469,10 @@ int main(int argc, char **argv)
                         }
                         double integrated;
                         integrated = strtod(str, NULL);
+                        if (isinf(integrated) || isnan(integrated))
+                        {
+                            integrated = 0.;
+                        }
 
                         ret = update_playback_list_loudness_data(
                                                               &database_context,
