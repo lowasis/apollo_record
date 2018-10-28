@@ -3084,7 +3084,11 @@ int main(int argc, char **argv)
                                 sizeof(data[i].name));
                         strncpy(data[i].start, list[i].start,
                                 sizeof(data[i].start));
+                        strncpy(data[i].end, list[i].end,
+                                sizeof(data[i].end));
                         data[i].channel = list[i].channel;
+                        strncpy(data[i].channel_name, list[i].channel_name,
+                                sizeof(data[i].channel_name));
                     }
 
                     if (list)

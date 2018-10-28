@@ -672,8 +672,27 @@ static int generate_log_list_xml(MessengerMessage *message,
             return -1;
         }
 
+        ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("end"),
+                                                "%s", data[i].end);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
         ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("channel"),
                                                 "%d", data[i].channel);
+        if (ret < 0)
+        {
+            fprintf(stderr, "Could not write xml attribute\n");
+
+            return -1;
+        }
+
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("channel_name"), "%s",
+                                                data[i].channel_name);
         if (ret < 0)
         {
             fprintf(stderr, "Could not write xml attribute\n");

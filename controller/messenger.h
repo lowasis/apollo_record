@@ -90,7 +90,9 @@ typedef struct MessengerPlaybackListData {
 typedef struct MessengerLogListData {
     char name[128];
     char start[24];
+    char end[24];
     int channel;
+    char channel_name[24];
 } MessengerLogListData;
 
 typedef struct MessengerUserLoudnessSectionData {
