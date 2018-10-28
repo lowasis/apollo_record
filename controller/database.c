@@ -236,9 +236,18 @@ static int get_log_list_data_callback(void *arg, int argc, char **argv,
             {
                 strncpy(data[*i].start, argv[j], sizeof(data->start));
             }
+            else if (strcmp(col[j], "END") == 0)
+            {
+                strncpy(data[*i].end, argv[j], sizeof(data->end));
+            }
             else if (strcmp(col[j], "CHANNEL") == 0)
             {
                 data[*i].channel = strtol(argv[j], NULL, 10);
+            }
+            else if (strcmp(col[j], "CHANNEL_NAME") == 0)
+            {
+                strncpy(data[*i].channel_name, argv[j],
+                        sizeof(data->channel_name));
             }
         }
 
@@ -410,11 +419,14 @@ int database_init(char *name, DatabaseContext *context)
     DatabaseLogListData l;
     snprintf(query, sizeof(query),
              "CREATE TABLE IF NOT EXISTS LOG_LIST("
-             "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
-             "NAME        CHAR(%ld) NOT NULL, "
-             "START       CHAR(%ld) NOT NULL, "
-             "CHANNEL     INTEGER NOT NULL);",
-             sizeof(p.name), sizeof(p.start));
+             "ID            INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME          CHAR(%ld) NOT NULL, "
+             "START         CHAR(%ld) NOT NULL, "
+             "END           CHAR(%ld) NOT NULL, "
+             "CHANNEL       INTEGER NOT NULL, "
+             "CHANNEL_NAME  CHAR(%ld) NOT NULL);",
+             sizeof(l.name), sizeof(l.start), sizeof(l.end),
+             sizeof(l.channel_name));
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
@@ -878,10 +890,11 @@ int database_set_log_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO LOG_LIST "
-                 "(ID, NAME, START, CHANNEL) VALUES "
+                 "(ID, NAME, START, END, CHANNEL, CHANNEL_NAME) VALUES "
                  "((SELECT ID FROM LOG_LIST WHERE NAME = \"%s\"), "
-                 "\"%s\", \"%s\", %d);",
-                 data[i].name, data[i].name, data[i].start, data[i].channel);
+                 "\"%s\", \"%s\", \"%s\", %d, \"%s\");",
+                 data[i].name, data[i].name, data[i].start, data[i].end,
+                 data[i].channel, data[i].channel_name);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -908,7 +921,7 @@ int database_get_log_list_data(DatabaseContext *context,
 
     char query[512];
     snprintf(query, sizeof(query),
-             "SELECT NAME, START, CHANNEL FROM LOG_LIST;");
+             "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME FROM LOG_LIST;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};

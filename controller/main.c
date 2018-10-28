@@ -59,7 +59,9 @@ typedef struct PlaybackList {
 typedef struct LogList {
     char name[128];
     char start[24];
+    char end[24];
     int channel;
+    char channel_name[24];
 } LogList;
 
 typedef struct UserLoudness {
@@ -642,7 +644,7 @@ static int loudness_reset(IpcContext *context, int index)
 }
 
 static int loudness_log_start(IpcContext *context, int index, int channel,
-                              char *path, LogList *list)
+                              char *channel_name, char *path, LogList *list)
 {
     int ret;
 
@@ -670,7 +672,9 @@ static int loudness_log_start(IpcContext *context, int index, int channel,
 
     strncpy(list->name, &ipc_message.arg[strlen(path) + 1], sizeof(list->name));
     strncpy(list->start, curr, sizeof(list->start));
+    list->end[0] = 0;
     list->channel = channel;
+    strncpy(list->channel_name, channel_name, sizeof(list->channel_name));
 
     return 0;
 }
@@ -1189,7 +1193,10 @@ static int save_log_list_data(DatabaseContext *context, LogList *list,
     {
         strncpy(data[i].name, list[i].name, sizeof(data[i].name));
         strncpy(data[i].start, list[i].start, sizeof(data[i].start));
+        strncpy(data[i].end, list[i].end, sizeof(data[i].end));
         data[i].channel = list[i].channel;
+        strncpy(data[i].channel_name, list[i].channel_name,
+                sizeof(data[i].channel_name));
     }
 
     ret = database_set_log_list_data(context, data, count);
@@ -1253,7 +1260,10 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     {
         strncpy(new_list[i].name, data[i].name, sizeof(data[i].name));
         strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
+        strncpy(new_list[i].end, data[i].end, sizeof(data[i].end));
         new_list[i].channel = data[i].channel;
+        strncpy(new_list[i].channel_name, data[i].channel_name,
+                sizeof(data[i].channel_name));
     }
 
     if (*list)
@@ -2391,9 +2401,17 @@ int main(int argc, char **argv)
             }
         }
 
+        char *channel_name = NULL;
+        ret = epg_get_channel_name(epg_context, status[i].channel,
+                                   &channel_name);
+        if (ret != 0)
+        {
+            channel_name = "";
+        }
+
         LogList log_list;
         ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                 loudness_log_path, &log_list);
+                                 channel_name, loudness_log_path, &log_list);
         if (ret == 0)
         {
             float uptime;
@@ -2721,10 +2739,20 @@ int main(int argc, char **argv)
                                                 "Could not reset loudness\n");
                                     }
 
+                                    char *channel_name = NULL;
+                                    ret = epg_get_channel_name(epg_context,
+                                                  status[data[i].index].channel,
+                                                  &channel_name);
+                                    if (ret != 0)
+                                    {
+                                        channel_name = "";
+                                    }
+
                                     LogList log_list;
                                     ret = loudness_log_start(ipc_context,
                                                   data[i].index,
                                                   status[data[i].index].channel,
+                                                  channel_name,
                                                   loudness_log_path, &log_list);
                                     if (ret == 0)
                                     {
@@ -3529,9 +3557,19 @@ int main(int argc, char **argv)
                             fprintf(stderr, "Could not reset loudness\n");
                         }
 
+                        char *channel_name = NULL;
+                        ret = epg_get_channel_name(epg_context,
+                                                   status[i].channel,
+                                                   &channel_name);
+                        if (ret != 0)
+                        {
+                            channel_name = "";
+                        }
+
                         LogList log_list;
                         ret = loudness_log_start(ipc_context, i,
                                                  status[i].channel,
+                                                 channel_name,
                                                  loudness_log_path, &log_list);
                         if (ret == 0)
                         {
@@ -3753,7 +3791,8 @@ int main(int argc, char **argv)
 
                     LogList log_list;
                     ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                             loudness_log_path, &log_list);
+                                             channel_name, loudness_log_path,
+                                             &log_list);
                     if (ret == 0)
                     {
                         float uptime;
