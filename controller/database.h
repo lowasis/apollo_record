@@ -12,6 +12,7 @@ typedef struct DatabaseStatusData {
     int index;
     int channel;
     int recording;
+    char name[128];
 } DatabaseStatusData;
 
 typedef struct DatabaseScheduleData {
@@ -26,7 +27,12 @@ typedef struct DatabasePlaybackListData {
     char start[24];
     char end[24];
     int channel;
+    char channel_name[24];
+    char program_name[128];
+    char program_start[24];
+    char program_end[24];
     double loudness;
+    int type;
 } DatabasePlaybackListData;
 
 typedef struct DatabaseLogListData {
@@ -69,6 +75,12 @@ int database_set_playback_list_data(DatabaseContext *context,
                                     DatabasePlaybackListData *data, int count);
 int database_get_playback_list_data(DatabaseContext *context,
                                     DatabasePlaybackListData *data, int count);
+int database_get_playback_list_data_one(DatabaseContext *context, char *name,
+                                        DatabasePlaybackListData *data);
+int database_update_playback_list_program_data(DatabaseContext *context,
+                                               char *name, char *program_name,
+                                               char *program_start,
+                                               char *program_end);
 int database_update_playback_list_loudness_data(DatabaseContext *context,
                                                 char *name, double loudness);
 int database_count_log_list_data(DatabaseContext *context, int *count);

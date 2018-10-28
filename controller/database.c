@@ -67,6 +67,10 @@ static int get_status_data_callback(void *arg, int argc, char **argv,
             {
                 data[*i].recording = strtol(argv[j], NULL, 10);
             }
+            else if (strcmp(col[j], "NAME") == 0)
+            {
+                strncpy(data[*i].name, argv[j], sizeof(data->name));
+            }
         }
 
         (*i)++;
@@ -164,9 +168,33 @@ static int get_playback_list_data_callback(void *arg, int argc, char **argv,
             {
                 data[*i].channel = strtol(argv[j], NULL, 10);
             }
+            else if (strcmp(col[j], "CHANNEL_NAME") == 0)
+            {
+                strncpy(data[*i].channel_name, argv[j],
+                        sizeof(data->channel_name));
+            }
+            else if (strcmp(col[j], "PROGRAM_NAME") == 0)
+            {
+                strncpy(data[*i].program_name, argv[j],
+                        sizeof(data->program_name));
+            }
+            else if (strcmp(col[j], "PROGRAM_START") == 0)
+            {
+                strncpy(data[*i].program_start, argv[j],
+                        sizeof(data->program_start));
+            }
+            else if (strcmp(col[j], "PROGRAM_END") == 0)
+            {
+                strncpy(data[*i].program_end, argv[j],
+                        sizeof(data->program_end));
+            }
             else if (strcmp(col[j], "LOUDNESS") == 0)
             {
                 data[*i].loudness = strtod(argv[j], NULL);
+            }
+            else if (strcmp(col[j], "TYPE") == 0)
+            {
+                data[*i].type = strtol(argv[j], NULL, 10);
             }
         }
 
@@ -322,12 +350,14 @@ int database_init(char *name, DatabaseContext *context)
     }
 
     char query[512];
+    DatabaseStatusData t;
     snprintf(query, sizeof(query),
              "CREATE TABLE IF NOT EXISTS STATUS("
              "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
              "IDX         INTEGER NOT NULL, "
              "CHANNEL     INTEGER NOT NULL, "
-             "RECORDING   INTEGER NOT NULL);");
+             "RECORDING   INTEGER NOT NULL, "
+             "NAME        CHAR(%ld) NOT NULL);", sizeof(t.name));
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
@@ -354,13 +384,20 @@ int database_init(char *name, DatabaseContext *context)
     DatabasePlaybackListData p;
     snprintf(query, sizeof(query),
              "CREATE TABLE IF NOT EXISTS PLAYBACK_LIST("
-             "ID          INTEGER PRIMARY KEY AUTOINCREMENT, "
-             "NAME        CHAR(%ld) NOT NULL, "
-             "START       CHAR(%ld) NOT NULL, "
-             "END         CHAR(%ld) NOT NULL, "
-             "CHANNEL     INTEGER NOT NULL, "
-             "LOUDNESS    REAL NOT NULL);",
-             sizeof(p.name), sizeof(p.start), sizeof(p.end));
+             "ID            INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME          CHAR(%ld) NOT NULL, "
+             "START         CHAR(%ld) NOT NULL, "
+             "END           CHAR(%ld) NOT NULL, "
+             "CHANNEL       INTEGER NOT NULL, "
+             "CHANNEL_NAME  CHAR(%ld) NOT NULL, "
+             "PROGRAM_NAME  CHAR(%ld) NOT NULL, "
+             "PROGRAM_START CHAR(%ld) NOT NULL, "
+             "PROGRAM_END   CHAR(%ld) NOT NULL, "
+             "LOUDNESS      REAL NOT NULL, "
+             "TYPE          INTEGER NOT NULL);",
+             sizeof(p.name), sizeof(p.start), sizeof(p.end),
+             sizeof(p.channel_name), sizeof(p.program_name),
+             sizeof(p.program_start), sizeof(p.program_end));
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
@@ -474,10 +511,11 @@ int database_set_status_data(DatabaseContext *context, DatabaseStatusData *data,
     {
         char query[512];
         snprintf(query, sizeof(query),
-                 "INSERT OR REPLACE INTO STATUS (ID, IDX, CHANNEL, RECORDING) "
-                 "VALUES ((SELECT ID FROM STATUS WHERE IDX = %d), %d, %d, %d);",
+                 "INSERT OR REPLACE INTO STATUS (ID, IDX, CHANNEL, RECORDING, "
+                 "NAME) VALUES ((SELECT ID FROM STATUS WHERE IDX = %d), "
+                 "%d, %d, %d, \"%s\");",
                  data[i].index, data[i].index, data[i].channel,
-                 data[i].recording);
+                 data[i].recording, data[i].name);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -503,7 +541,7 @@ int database_get_status_data(DatabaseContext *context, DatabaseStatusData *data,
 
     char query[512];
     snprintf(query, sizeof(query),
-             "SELECT IDX, CHANNEL, RECORDING FROM STATUS;");
+             "SELECT IDX, CHANNEL, RECORDING, NAME FROM STATUS;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};
@@ -650,11 +688,15 @@ int database_set_playback_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO PLAYBACK_LIST "
-                 "(ID, NAME, START, END, CHANNEL, LOUDNESS) VALUES "
+                 "(ID, NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
+                 "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE) VALUES "
                  "((SELECT ID FROM PLAYBACK_LIST WHERE NAME = \"%s\"), "
-                 "\"%s\", \"%s\", \"%s\", %d, %f);",
+                 "\"%s\", \"%s\", \"%s\", %d, \"%s\", \"%s\", \"%s\", \"%s\", "
+                 "%f, %d);",
                  data[i].name, data[i].name, data[i].start, data[i].end,
-                 data[i].channel, data[i].loudness);
+                 data[i].channel, data[i].channel_name, data[i].program_name,
+                 data[i].program_start, data[i].program_end, data[i].loudness,
+                 data[i].type);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -681,7 +723,8 @@ int database_get_playback_list_data(DatabaseContext *context,
 
     char query[512];
     snprintf(query, sizeof(query),
-             "SELECT NAME, START, END, CHANNEL, LOUDNESS FROM PLAYBACK_LIST;");
+             "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
+             "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE FROM PLAYBACK_LIST;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};
@@ -691,6 +734,77 @@ int database_get_playback_list_data(DatabaseContext *context,
     {
         fprintf(stderr,
                 "Could not execute sqlite3 select playback list data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_get_playback_list_data_one(DatabaseContext *context, char *name,
+                                        DatabasePlaybackListData *data)
+{
+    int ret;
+
+    if (!context || !name || !data)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
+             "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE FROM PLAYBACK_LIST "
+             "WHERE NAME = \"%s\";", name);
+
+    int count = 1;
+    int i = 0;
+    void *arg[] = {data, &count, &i};
+    ret = sqlite3_exec(context->db, query, get_playback_list_data_callback,
+                       (void *)arg, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr,
+                "Could not execute sqlite3 select playback list data one\n");
+
+        return -1;
+    }
+
+    if (i == 0)
+    {
+        fprintf(stderr,
+                "Could not find sqlite3 playback list data one \n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
+int database_update_playback_list_program_data(DatabaseContext *context,
+                                               char *name, char *program_name,
+                                               char *program_start,
+                                               char *program_end)
+{
+    int ret;
+
+    if (!context || !name || !program_name || !program_start || !program_end)
+    {
+        return -1;
+    }
+
+    char query[512];
+    snprintf(query, sizeof(query),
+             "UPDATE PLAYBACK_LIST SET PROGRAM_NAME = \"%s\", "
+             "PROGRAM_START = \"%s\", PROGRAM_END = \"%s\" "
+             "WHERE NAME = \"%s\";",
+             program_name, program_start, program_end, name);
+
+    ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
+    if(ret != SQLITE_OK)
+    {
+        fprintf(stderr, "Could not execute sqlite3 update "
+                        "playback list loudness data\n");
 
         return -1;
     }

@@ -33,6 +33,7 @@ typedef struct Loudness {
 typedef struct Status {
     int channel;
     int recording;
+    char name[128];
 } Status;
 
 typedef struct Schedule {
@@ -47,7 +48,12 @@ typedef struct PlaybackList {
     char start[24];
     char end[24];
     int channel;
+    char channel_name[24];
+    char program_name[128];
+    char program_start[24];
+    char program_end[24];
     double loudness;
+    int type;
 } PlaybackList;
 
 typedef struct LogList {
@@ -688,8 +694,8 @@ static int loudness_log_end(IpcContext *context, int index)
 }
 
 static int av_record_start(IpcContext *context, int index, time_t start_time,
-                           time_t end_time, int channel, char *path,
-                           PlaybackList *list)
+                           time_t end_time, int channel, char *channel_name,
+                           char *path, PlaybackList *list)
 {
     int ret;
 
@@ -733,7 +739,12 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
     strncpy(list->start, start, sizeof(list->start));
     strncpy(list->end, end, sizeof(list->end));
     list->channel = channel;
+    strncpy(list->channel_name, channel_name, sizeof(list->channel_name));
+    list->program_name[0] = 0;
+    list->program_start[0] = 0;
+    list->program_end[0] = 0;
     list->loudness = 0.;
+    list->type = 0;
 
     return 0;
 }
@@ -810,6 +821,7 @@ static int save_status_data(DatabaseContext *context, Status *status, int count)
         data[i].index = i;
         data[i].channel = status[i].channel;
         data[i].recording = status[i].recording;
+        strncpy(data[i].name, status[i].name, sizeof(data[i].name));
     }
 
     ret = database_set_status_data(context, data, count);
@@ -865,6 +877,8 @@ static int load_status_data(DatabaseContext *context, Status *status, int count)
         {
             status[data[i].index].channel = data[i].channel;
             status[data[i].index].recording = data[i].recording;
+            strncpy(status[data[i].index].name, data[i].name,
+                    sizeof(status[data[i].index].name));
         }
     }
 
@@ -1004,7 +1018,16 @@ static int save_playback_list_data(DatabaseContext *context,
         strncpy(data[i].start, list[i].start, sizeof(data[i].start));
         strncpy(data[i].end, list[i].end, sizeof(data[i].end));
         data[i].channel = list[i].channel;
+        strncpy(data[i].channel_name, list[i].channel_name,
+                sizeof(data[i].channel_name));
+        strncpy(data[i].program_name, list[i].program_name,
+                sizeof(data[i].program_name));
+        strncpy(data[i].program_start, list[i].program_start,
+                sizeof(data[i].program_start));
+        strncpy(data[i].program_end, list[i].program_end,
+                sizeof(data[i].program_end));
         data[i].loudness = list[i].loudness;
+        data[i].type = list[i].type;
     }
 
     ret = database_set_playback_list_data(context, data, count);
@@ -1073,7 +1096,16 @@ static int load_playback_list_data(DatabaseContext *context,
         strncpy(new_list[i].start, data[i].start, sizeof(data[i].start));
         strncpy(new_list[i].end, data[i].end, sizeof(data[i].end));
         new_list[i].channel = data[i].channel;
+        strncpy(new_list[i].channel_name, data[i].channel_name,
+                sizeof(data[i].channel_name));
+        strncpy(new_list[i].program_name, data[i].program_name,
+                sizeof(data[i].program_name));
+        strncpy(new_list[i].program_start, data[i].program_start,
+                sizeof(data[i].program_start));
+        strncpy(new_list[i].program_end, data[i].program_end,
+                sizeof(data[i].program_end));
         new_list[i].loudness = data[i].loudness;
+        new_list[i].type = data[i].type;
     }
 
     if (*list)
@@ -1084,6 +1116,40 @@ static int load_playback_list_data(DatabaseContext *context,
     *list = new_list;
 
     free(data);
+
+    return 0;
+}
+
+static int update_playback_list_program_data(DatabaseContext *context,
+                                             char *name, char *program_name,
+                                             uint64_t program_start,
+                                             uint64_t program_end)
+{
+    int ret;
+
+    char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(program_start, start, sizeof(start));
+    if (ret != 0)
+    {
+        strncpy(start, "1970-01-01 00:00:00", sizeof(start));
+    }
+
+    char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(program_end, end, sizeof(end));
+    if (ret != 0)
+    {
+        strncpy(end, "1970-01-01 00:00:00", sizeof(end));
+    }
+
+    ret = database_update_playback_list_program_data(context, name,
+                                                     program_name, start, end);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not update "
+                        "database playback list program data\n");
+
+        return -1;
+    }
 
     return 0;
 }
@@ -1234,6 +1300,51 @@ static int save_user_loudness_data(DatabaseContext *context,
 
         return -1;
     }
+
+    DatabasePlaybackListData *list_data;
+    list_data = (DatabasePlaybackListData *)malloc(count *
+                                              sizeof(DatabasePlaybackListData));
+    if (!list_data)
+    {
+        fprintf(stderr,
+                "Could not allocate database playback list data buffer\n");
+
+        free(data);
+
+        return -1;
+    }
+
+    int j = 0;
+    for (int i = 0; i < count; i++)
+    {
+        ret = database_get_playback_list_data_one(context,
+                                                  loudness[i].record_name,
+                                                  &list_data[j]);
+        if (ret != 0)
+        {
+            fprintf(stderr, "Could not get database playback list data one\n");
+
+            continue;
+        }
+
+        strncpy(list_data[j].name, loudness[i].name, sizeof(list_data[j].name));
+        list_data[j].type = 1;
+        j++;
+    }
+
+    ret = database_set_playback_list_data(context, list_data, j);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not set database playback list data\n");
+
+        free(list_data);
+
+        free(data);
+
+        return -1;
+    }
+
+    free(list_data);
 
     free(data);
 
@@ -3447,10 +3558,18 @@ int main(int argc, char **argv)
                         }
                     }
 
+                    char *channel_name = NULL;
+                    ret = epg_get_channel_name(epg_context, status[i].channel,
+                                               &channel_name);
+                    if (ret != 0)
+                    {
+                        channel_name = "";
+                    }
+
                     PlaybackList playback_list;
                     ret = av_record_start(ipc_context, i, ret_schedule->start,
                                           ret_schedule->end,
-                                          ret_schedule->channel,
+                                          ret_schedule->channel, channel_name,
                                           av_record_path, &playback_list);
                     if (ret == 0)
                     {
@@ -3460,6 +3579,8 @@ int main(int argc, char **argv)
                         printf("[%.3f] %d, AV record start\n", uptime, i);
 
                         status[i].recording = 1;
+                        strncpy(status[i].name, playback_list.name,
+                                sizeof(status[i].name));
                     }
 
                     ret = save_playback_list_data(&database_context,
@@ -3512,6 +3633,7 @@ int main(int argc, char **argv)
                     printf("[%.3f] %d, AV record end\n", uptime, i);
 
                     status[i].recording = 0;
+                    status[i].name[0] = 0;
                 }
 
                 ret = save_status_data(&database_context, status,
@@ -3569,6 +3691,30 @@ int main(int argc, char **argv)
                            ret_epg.channel);
                 }
 
+                if (status[i].recording && strlen(status[i].name))
+                {
+                    ret = update_playback_list_program_data(
+                                                          &database_context,
+                                                          status[i].name,
+                                                          ret_epg.name,
+                                                          ret_epg.start,
+                                                          ret_epg.end);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not update "
+                                        "playback list program data\n");
+                    }
+
+                    status[i].name[0] = 0;
+
+                    ret = save_status_data(&database_context, status,
+                                           ipc_socket_name_count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save status data\n");
+                    }
+                }
+
                 if (ret_epg.channel != current_epg[i].channel)
                 {
                     memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
@@ -3596,6 +3742,15 @@ int main(int argc, char **argv)
                         fprintf(stderr, "Could not reset loudness\n");
                     }
 
+                    char *channel_name = NULL;
+                    ret = epg_get_channel_name(epg_context,
+                                               status[i].channel,
+                                               &channel_name);
+                    if (ret != 0)
+                    {
+                        channel_name = "";
+                    }
+
                     LogList log_list;
                     ret = loudness_log_start(ipc_context, i, status[i].channel,
                                              loudness_log_path, &log_list);
@@ -3620,6 +3775,7 @@ int main(int argc, char **argv)
                                               current_schedule[i].start,
                                               current_schedule[i].end,
                                               current_schedule[i].channel,
+                                              channel_name,
                                               av_record_path, &playback_list);
                         if (ret == 0)
                         {
@@ -3627,6 +3783,9 @@ int main(int argc, char **argv)
                             uptime = (float)(get_usec() - start_usec) / 1000000;
 
                             printf("[%.3f] %d, AV record start\n", uptime, i);
+
+                            strncpy(status[i].name, playback_list.name,
+                                    sizeof(status[i].name));
                         }
 
                         ret = save_playback_list_data(&database_context,
@@ -3636,6 +3795,20 @@ int main(int argc, char **argv)
                             fprintf(stderr,
                                     "Could not save playback list data\n");
                         }
+
+                        ret = update_playback_list_program_data(
+                                                              &database_context,
+                                                              status[i].name,
+                                                              ret_epg.name,
+                                                              ret_epg.start,
+                                                              ret_epg.end);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not update "
+                                            "playback list program data\n");
+                        }
+
+                        status[i].name[0] = 0;
 
                         ret = save_status_data(&database_context, status,
                                                ipc_socket_name_count);
