@@ -207,6 +207,10 @@ int main(int argc, char **argv)
 
                 printf("wrong sent\n");
             }
+            else if (!strcmp(line_buf, "end"))
+            {
+                break;
+            }
         }
 
         ret = recv(sockfd, buf, sizeof(buf) - 1, MSG_NOSIGNAL | MSG_DONTWAIT);
