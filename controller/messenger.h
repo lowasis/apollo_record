@@ -119,6 +119,7 @@ typedef struct MessengerContext {
     int rx_buffer_index;
     int buffer_size;
     int client_fd;
+    int max_buffer_size;
 } MessengerContext;
 
 int messenger_init(int port, int buffer_size, MessengerContext *context);

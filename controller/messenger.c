@@ -3943,6 +3943,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     context->rx_buffer_index = 0;
     context->buffer_size = buffer_size;
     context->client_fd = -1;
+    context->max_buffer_size = context->buffer_size * 16;
 
     return 0;
 }
@@ -4040,34 +4041,50 @@ int messenger_receive_message(MessengerContext *context,
 
     if (0 < context->client_fd)
     {
-        ret = recv(context->client_fd,
+        while(1){
+            ret = recv(context->client_fd,
                    &context->rx_buffer[context->rx_buffer_index],
                    context->buffer_size - context->rx_buffer_index,
                    MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (ret == -1)
-        {
-	   if (errno == EAGAIN || errno == EWOULDBLOCK)
+            if (ret == -1)
             {
-            	//pass  
-            } else {
+                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                {
+		            //pass
+                } else {
+                    fprintf(stderr, "Could not receive message\n");
+
+                    close(context->client_fd);
+
+                    context->client_fd = -1;
+                }
+            }
+            else if (ret == 0)
+            {
                 fprintf(stderr, "Could not receive message\n");
 
                 close(context->client_fd);
 
                 context->client_fd = -1;
             }
-        }
-        else if (ret == 0)
-        {
-            fprintf(stderr, "Could not receive message\n");
+            else
+            {
+                context->rx_buffer_index += ret;
+            }
 
-            close(context->client_fd);
-
-            context->client_fd = -1;
-        }
-        else
-        {
-            context->rx_buffer_index += ret;
+            if (context->buffer_size == context->rx_buffer_index)
+            {
+                if(context->buffer_size < context->max_buffer_size)
+                {
+                    context->buffer_size *= 2;
+                    context->rx_buffer = (char *)realloc(context->rx_buffer, sizeof(char) * context->buffer_size);
+                } else {
+                    context->rx_buffer_index = 0;
+                    break;
+                }
+            } else {
+                break;
+            }
         }
     }
 
