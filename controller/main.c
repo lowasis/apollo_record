@@ -33,7 +33,9 @@ typedef struct Loudness {
 typedef struct Status {
     int channel;
     int recording;
-    char name[128];
+    char av_record_name[128];
+    char loudness_log_name[128];
+    int program_data_updated;
 } Status;
 
 typedef struct Schedule {
@@ -659,7 +661,7 @@ static int loudness_log_start(IpcContext *context, int index, int channel,
     ipc_message.command = IPC_COMMAND_LOUDNESS_LOG_START;
     ret = snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s/", path);
     snprintf(&ipc_message.arg[ret], sizeof(ipc_message.arg) - ret,
-             "Ch%d_%s_%d.log", channel, curr, index);
+             "%s_%d_%d_%s.log", curr, index, channel, channel_name);
     remove_non_filename_character(&ipc_message.arg[ret],
                                   sizeof(ipc_message.arg) - ret);
     ret = ipc_send_message(&context[index], &ipc_message);
@@ -697,25 +699,10 @@ static int loudness_log_end(IpcContext *context, int index)
     return 0;
 }
 
-static int av_record_start(IpcContext *context, int index, time_t start_time,
-                           time_t end_time, int channel, char *channel_name,
-                           char *path, PlaybackList *list)
+static int av_record_start(IpcContext *context, int index, int channel,
+                           char *channel_name, char *path, PlaybackList *list)
 {
     int ret;
-
-    char start[strlen("YYYY-MM-DD HH:MM:SS") + 1];
-    ret = convert_unixtime_to_localtime_str(start_time, start, sizeof(start));
-    if (ret != 0)
-    {
-        strncpy(start, "1970-01-01 00:00:00", sizeof(start));
-    }
-
-    char end[strlen("YYYY-MM-DD HH:MM:SS") + 1];
-    ret = convert_unixtime_to_localtime_str(end_time, end, sizeof(end));
-    if (ret != 0)
-    {
-        strncpy(end, "1970-01-01 00:00:00", sizeof(end));
-    }
 
     char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
     ret = convert_unixtime_to_localtime_str(time(NULL), curr, sizeof(curr));
@@ -728,7 +715,7 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
     ipc_message.command = IPC_COMMAND_AV_RECORD_START;
     ret = snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s/", path);
     snprintf(&ipc_message.arg[ret], sizeof(ipc_message.arg) - ret,
-             "Ch%d_%s_%s_%s_%d.ts", channel, start, end, curr, index);
+             "%s_%d_%d_%s.ts", curr, index, channel, channel_name);
     remove_non_filename_character(&ipc_message.arg[ret],
                                   sizeof(ipc_message.arg) - ret);
     ret = ipc_send_message(&context[index], &ipc_message);
@@ -740,8 +727,8 @@ static int av_record_start(IpcContext *context, int index, time_t start_time,
     }
 
     strncpy(list->name, &ipc_message.arg[strlen(path) + 1], sizeof(list->name));
-    strncpy(list->start, start, sizeof(list->start));
-    strncpy(list->end, end, sizeof(list->end));
+    strncpy(list->start, curr, sizeof(list->start));
+    list->end[0] = 0;
     list->channel = channel;
     strncpy(list->channel_name, channel_name, sizeof(list->channel_name));
     list->program_name[0] = 0;
@@ -825,7 +812,11 @@ static int save_status_data(DatabaseContext *context, Status *status, int count)
         data[i].index = i;
         data[i].channel = status[i].channel;
         data[i].recording = status[i].recording;
-        strncpy(data[i].name, status[i].name, sizeof(data[i].name));
+        strncpy(data[i].av_record_name, status[i].av_record_name,
+                sizeof(data[i].av_record_name));
+        strncpy(data[i].loudness_log_name, status[i].loudness_log_name,
+                sizeof(data[i].loudness_log_name));
+        data[i].program_data_updated = status[i].program_data_updated;
     }
 
     ret = database_set_status_data(context, data, count);
@@ -881,8 +872,14 @@ static int load_status_data(DatabaseContext *context, Status *status, int count)
         {
             status[data[i].index].channel = data[i].channel;
             status[data[i].index].recording = data[i].recording;
-            strncpy(status[data[i].index].name, data[i].name,
-                    sizeof(status[data[i].index].name));
+            strncpy(status[data[i].index].av_record_name,
+                    data[i].av_record_name,
+                    sizeof(status[data[i].index].av_record_name));
+            strncpy(status[data[i].index].loudness_log_name,
+                    data[i].loudness_log_name,
+                    sizeof(status[data[i].index].loudness_log_name));
+            status[data[i].index].program_data_updated =
+                                                   data[i].program_data_updated;
         }
     }
 
@@ -1124,6 +1121,29 @@ static int load_playback_list_data(DatabaseContext *context,
     return 0;
 }
 
+static int update_playback_list_end_data(DatabaseContext *context, char *name,
+                                         uint64_t end)
+{
+    int ret;
+
+    char str[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(end, str, sizeof(str));
+    if (ret != 0)
+    {
+        strncpy(str, "1970-01-01 00:00:00", sizeof(str));
+    }
+
+    ret = database_update_playback_list_end_data(context, name, str);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not update database playback list end data\n");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int update_playback_list_program_data(DatabaseContext *context,
                                              char *name, char *program_name,
                                              uint64_t program_start,
@@ -1274,6 +1294,29 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     *list = new_list;
 
     free(data);
+
+    return 0;
+}
+
+static int update_log_list_end_data(DatabaseContext *context, char *name,
+                                    uint64_t end)
+{
+    int ret;
+
+    char str[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(end, str, sizeof(str));
+    if (ret != 0)
+    {
+        strncpy(str, "1970-01-01 00:00:00", sizeof(str));
+    }
+
+    ret = database_update_log_list_end_data(context, name, str);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not update database log list end data\n");
+
+        return -1;
+    }
 
     return 0;
 }
@@ -2401,6 +2444,19 @@ int main(int argc, char **argv)
             }
         }
 
+        if (strlen(status[i].loudness_log_name))
+        {
+            ret = update_log_list_end_data(&database_context,
+                                           status[i].loudness_log_name,
+                                           time(NULL));
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not update log list end data\n");
+            }
+
+            status[i].loudness_log_name[0] = 0;
+        }
+
         char *channel_name = NULL;
         ret = epg_get_channel_name(epg_context, status[i].channel,
                                    &channel_name);
@@ -2418,13 +2474,26 @@ int main(int argc, char **argv)
             uptime = (float)(get_usec() - start_usec) / 1000000;
 
             printf("[%.3f] %d, Loudness log start\n", uptime, i);
-        }
 
-        ret = save_log_list_data(&database_context, &log_list, 1);
-        if (ret != 0)
-        {
-            fprintf(stderr, "Could not save log list data\n");
+            ret = save_log_list_data(&database_context, &log_list, 1);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not save log list data\n");
+            }
+
+            strncpy(status[i].loudness_log_name, log_list.name,
+                    sizeof(status[i].loudness_log_name));
         }
+        else
+        {
+            status[i].loudness_log_name[0] = 0;
+        }
+    }
+
+    ret = save_status_data(&database_context, status, ipc_socket_name_count);
+    if (ret != 0)
+    {
+        fprintf(stderr, "Could not save status data\n");
     }
 
     while (!program_end_flag)
@@ -2700,10 +2769,11 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (data[i].index < lircd_socket_name_count)
+                                int index = data[i].index;
+                                if (index < lircd_socket_name_count)
                                 {
                                     ret = channel_change(irremote_context,
-                                                         data[i].index,
+                                                         index,
                                                          data[i].channel);
                                     if (ret != 0)
                                     {
@@ -2712,19 +2782,17 @@ int main(int argc, char **argv)
                                     }
                                     else
                                     {
-                                        if (data[i].index <
-                                            ipc_socket_name_count)
+                                        if (index < ipc_socket_name_count)
                                         {
-                                            status[data[i].index].channel =
+                                            status[index].channel =
                                                                 data[i].channel;
                                         }
                                     }
                                 }
 
-                                if (data[i].index < ipc_socket_name_count)
+                                if (index < ipc_socket_name_count)
                                 {
-                                    ret = loudness_log_end(ipc_context,
-                                                           data[i].index);
+                                    ret = loudness_log_end(ipc_context, index);
                                     if (ret == 0)
                                     {
                                         float uptime;
@@ -2732,11 +2800,25 @@ int main(int argc, char **argv)
                                                  start_usec) / 1000000;
 
                                         printf("[%.3f] %d, Loudness log end\n",
-                                               uptime, data[i].index);
+                                               uptime, index);
                                     }
 
-                                    ret = loudness_reset(ipc_context,
-                                                         data[i].index);
+                                    if (strlen(status[index].loudness_log_name))
+                                    {
+                                        ret = update_log_list_end_data(
+                                                &database_context,
+                                                status[index].loudness_log_name,
+                                                time(NULL));
+                                        if (ret != 0)
+                                        {
+                                            fprintf(stderr, "Could not update "
+                                                    "log list end data\n");
+                                        }
+
+                                        status[index].loudness_log_name[0] = 0;
+                                    }
+
+                                    ret = loudness_reset(ipc_context, index);
                                     if (ret != 0)
                                     {
                                         fprintf(stderr,
@@ -2745,7 +2827,7 @@ int main(int argc, char **argv)
 
                                     char *channel_name = NULL;
                                     ret = epg_get_channel_name(epg_context,
-                                                  status[data[i].index].channel,
+                                                  status[index].channel,
                                                   &channel_name);
                                     if (ret != 0)
                                     {
@@ -2754,8 +2836,8 @@ int main(int argc, char **argv)
 
                                     LogList log_list;
                                     ret = loudness_log_start(ipc_context,
-                                                  data[i].index,
-                                                  status[data[i].index].channel,
+                                                  index,
+                                                  status[index].channel,
                                                   channel_name,
                                                   loudness_log_path, &log_list);
                                     if (ret == 0)
@@ -2765,22 +2847,30 @@ int main(int argc, char **argv)
                                                  start_usec) / 1000000;
 
                                         printf("[%.3f] %d, Loudness log "
-                                               "start\n", uptime,
-                                               data[i].index);
-                                    }
+                                               "start\n", uptime, index);
 
-                                    ret = save_log_list_data(&database_context,
-                                                             &log_list, 1);
-                                    if (ret != 0)
+                                        ret = save_log_list_data(
+                                                              &database_context,
+                                                              &log_list, 1);
+                                        if (ret != 0)
+                                        {
+                                            fprintf(stderr, "Could not save "
+                                                            "log list data\n");
+                                        }
+
+                                        strncpy(status[index].loudness_log_name,
+                                              log_list.name,
+                                              sizeof(
+                                              status[index].loudness_log_name));
+                                    }
+                                    else
                                     {
-                                        fprintf(stderr, "Could not save "
-                                                        "log list data\n");
+                                        status[index].loudness_log_name[0] = 0;
                                     }
 
                                     ret = epg_request(epg_context, &epg_mutex,
-                                                      data[i].index,
-                                                      data[i].channel, &epg,
-                                                      &epg_count);
+                                                      index, data[i].channel,
+                                                      &epg, &epg_count);
                                     if (ret != 0)
                                     {
                                         fprintf(stderr,
@@ -3568,6 +3658,20 @@ int main(int argc, char **argv)
                             printf("[%.3f] %d, Loudness log end\n", uptime, i);
                         }
 
+                        if (strlen(status[i].loudness_log_name))
+                        {
+                            ret = update_log_list_end_data(&database_context,
+                                                    status[i].loudness_log_name,
+                                                    time(NULL));
+                            if (ret != 0)
+                            {
+                                fprintf(stderr,
+                                        "Could not update log list end data\n");
+                            }
+
+                            status[i].loudness_log_name[0] = 0;
+                        }
+
                         ret = loudness_reset(ipc_context, i);
                         if (ret != 0)
                         {
@@ -3595,13 +3699,21 @@ int main(int argc, char **argv)
 
                             printf("[%.3f] %d, Loudness log start\n", uptime,
                                    i);
-                        }
 
-                        ret = save_log_list_data(&database_context, &log_list,
-                                                 1);
-                        if (ret != 0)
+                            ret = save_log_list_data(&database_context,
+                                                     &log_list, 1);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr,
+                                        "Could not save log list data\n");
+                            }
+
+                            strncpy(status[i].loudness_log_name, log_list.name,
+                                    sizeof(status[i].loudness_log_name));
+                        }
+                        else
                         {
-                            fprintf(stderr, "Could not save log list data\n");
+                            status[i].loudness_log_name[0] = 0;
                         }
 
                         ret = epg_request(epg_context, &epg_mutex, i,
@@ -3613,6 +3725,20 @@ int main(int argc, char **argv)
                         }
                     }
 
+                    if (strlen(status[i].av_record_name))
+                    {
+                        ret = update_playback_list_end_data(&database_context,
+                                                       status[i].av_record_name,
+                                                       time(NULL));
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not update "
+                                            "playback list end data\n");
+                        }
+
+                        status[i].av_record_name[0] = 0;
+                    }
+
                     char *channel_name = NULL;
                     ret = epg_get_channel_name(epg_context, status[i].channel,
                                                &channel_name);
@@ -3622,10 +3748,9 @@ int main(int argc, char **argv)
                     }
 
                     PlaybackList playback_list;
-                    ret = av_record_start(ipc_context, i, ret_schedule->start,
-                                          ret_schedule->end,
-                                          ret_schedule->channel, channel_name,
-                                          av_record_path, &playback_list);
+                    ret = av_record_start(ipc_context, i, ret_schedule->channel,
+                                          channel_name, av_record_path,
+                                          &playback_list);
                     if (ret == 0)
                     {
                         float uptime;
@@ -3633,16 +3758,24 @@ int main(int argc, char **argv)
 
                         printf("[%.3f] %d, AV record start\n", uptime, i);
 
-                        status[i].recording = 1;
-                        strncpy(status[i].name, playback_list.name,
-                                sizeof(status[i].name));
-                    }
+                        ret = save_playback_list_data(&database_context,
+                                                      &playback_list, 1);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr,
+                                    "Could not save playback list data\n");
+                        }
 
-                    ret = save_playback_list_data(&database_context,
-                                                  &playback_list, 1);
-                    if (ret != 0)
+                        status[i].recording = 1;
+                        strncpy(status[i].av_record_name, playback_list.name,
+                                sizeof(status[i].av_record_name));
+                        status[i].program_data_updated = 0;
+                    }
+                    else
                     {
-                        fprintf(stderr, "Could not save playback list data\n");
+                        status[i].recording = 0;
+                        status[i].av_record_name[0] = 0;
+                        status[i].program_data_updated = 1;
                     }
 
                     ret = save_status_data(&database_context, status,
@@ -3686,10 +3819,25 @@ int main(int argc, char **argv)
                     uptime = (float)(get_usec() - start_usec) / 1000000;
 
                     printf("[%.3f] %d, AV record end\n", uptime, i);
-
-                    status[i].recording = 0;
-                    status[i].name[0] = 0;
                 }
+
+                if (strlen(status[i].av_record_name))
+                {
+                    ret = update_playback_list_end_data(&database_context,
+                                                       status[i].av_record_name,
+                                                       time(NULL));
+                    if (ret != 0)
+                    {
+                        fprintf(stderr,
+                                "Could not update playback list end data\n");
+                    }
+
+                    status[i].av_record_name[0] = 0;
+                }
+
+                status[i].recording = 0;
+                status[i].av_record_name[0] = 0;
+                status[i].program_data_updated = 1;
 
                 ret = save_status_data(&database_context, status,
                                        ipc_socket_name_count);
@@ -3702,7 +3850,7 @@ int main(int argc, char **argv)
             Epg ret_epg;
             ret = get_current_epg(&epg_mutex, epg, epg_count, i, time(NULL),
                                   &ret_epg);
-            if (ret == 0)
+            if (ret == 0 && ret_epg.channel == status[i].channel)
             {
                 if (current_epg[i].start != ret_epg.start)
                 {
@@ -3746,21 +3894,22 @@ int main(int argc, char **argv)
                            ret_epg.channel);
                 }
 
-                if (status[i].recording && strlen(status[i].name))
+                if (status[i].recording && strlen(status[i].av_record_name) &&
+                    !status[i].program_data_updated)
                 {
                     ret = update_playback_list_program_data(
-                                                          &database_context,
-                                                          status[i].name,
-                                                          ret_epg.name,
-                                                          ret_epg.start,
-                                                          ret_epg.end);
+                                                       &database_context,
+                                                       status[i].av_record_name,
+                                                       ret_epg.name,
+                                                       ret_epg.start,
+                                                       ret_epg.end);
                     if (ret != 0)
                     {
                         fprintf(stderr, "Could not update "
                                         "playback list program data\n");
                     }
 
-                    status[i].name[0] = 0;
+                    status[i].program_data_updated = 1;
 
                     ret = save_status_data(&database_context, status,
                                            ipc_socket_name_count);
@@ -3791,6 +3940,20 @@ int main(int argc, char **argv)
                         printf("[%.3f] %d, Loudness log end\n", uptime, i);
                     }
 
+                    if (strlen(status[i].loudness_log_name))
+                    {
+                        ret = update_log_list_end_data(&database_context,
+                                                    status[i].loudness_log_name,
+                                                    time(NULL));
+                        if (ret != 0)
+                        {
+                            fprintf(stderr,
+                                    "Could not update log list end data\n");
+                        }
+
+                        status[i].loudness_log_name[0] = 0;
+                    }
+
                     ret = loudness_reset(ipc_context, i);
                     if (ret != 0)
                     {
@@ -3816,20 +3979,41 @@ int main(int argc, char **argv)
                         uptime = (float)(get_usec() - start_usec) / 1000000;
 
                         printf("[%.3f] %d, Loudness log start\n", uptime, i);
-                    }
 
-                    ret = save_log_list_data(&database_context, &log_list, 1);
-                    if (ret != 0)
+                        ret = save_log_list_data(&database_context, &log_list,
+                                                 1);
+                        if (ret != 0)
+                        {
+                            fprintf(stderr, "Could not save log list data\n");
+                        }
+
+                        strncpy(status[i].loudness_log_name, log_list.name,
+                                sizeof(status[i].loudness_log_name));
+                    }
+                    else
                     {
-                        fprintf(stderr, "Could not save log list data\n");
+                        status[i].loudness_log_name[0] = 0;
                     }
 
                     if (status[i].recording)
                     {
+                        if (strlen(status[i].av_record_name))
+                        {
+                            ret = update_playback_list_end_data(
+                                                       &database_context,
+                                                       status[i].av_record_name,
+                                                       time(NULL));
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not update "
+                                                "playback list end data\n");
+                            }
+
+                            status[i].av_record_name[0] = 0;
+                        }
+
                         PlaybackList playback_list;
                         ret = av_record_start(ipc_context, i,
-                                              current_schedule[i].start,
-                                              current_schedule[i].end,
                                               current_schedule[i].channel,
                                               channel_name,
                                               av_record_path, &playback_list);
@@ -3840,38 +4024,47 @@ int main(int argc, char **argv)
 
                             printf("[%.3f] %d, AV record start\n", uptime, i);
 
-                            strncpy(status[i].name, playback_list.name,
-                                    sizeof(status[i].name));
-                        }
+                            ret = save_playback_list_data(&database_context,
+                                                          &playback_list, 1);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr,
+                                        "Could not save playback list data\n");
+                            }
 
-                        ret = save_playback_list_data(&database_context,
-                                                      &playback_list, 1);
-                        if (ret != 0)
+                            status[i].recording = 1;
+                            strncpy(status[i].av_record_name,
+                                    playback_list.name,
+                                    sizeof(status[i].av_record_name));
+                            status[i].program_data_updated = 0;
+
+                            ret = update_playback_list_program_data(
+                                                       &database_context,
+                                                       status[i].av_record_name,
+                                                       ret_epg.name,
+                                                       ret_epg.start,
+                                                       ret_epg.end);
+                            if (ret != 0)
+                            {
+                                fprintf(stderr, "Could not update "
+                                                "playback list program data\n");
+                            }
+
+                            status[i].program_data_updated = 1;
+                        }
+                        else
                         {
-                            fprintf(stderr,
-                                    "Could not save playback list data\n");
+                            status[i].recording = 0;
+                            status[i].av_record_name[0] = 0;
+                            status[i].program_data_updated = 1;
                         }
+                    }
 
-                        ret = update_playback_list_program_data(
-                                                              &database_context,
-                                                              status[i].name,
-                                                              ret_epg.name,
-                                                              ret_epg.start,
-                                                              ret_epg.end);
-                        if (ret != 0)
-                        {
-                            fprintf(stderr, "Could not update "
-                                            "playback list program data\n");
-                        }
-
-                        status[i].name[0] = 0;
-
-                        ret = save_status_data(&database_context, status,
-                                               ipc_socket_name_count);
-                        if (ret != 0)
-                        {
-                            fprintf(stderr, "Could not save status data\n");
-                        }
+                    ret = save_status_data(&database_context, status,
+                                           ipc_socket_name_count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not save status data\n");
                     }
 
                     memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
