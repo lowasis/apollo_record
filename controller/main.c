@@ -3931,68 +3931,10 @@ int main(int argc, char **argv)
 
                 if (current_epg[i].start != ret_epg.start)
                 {
-                    ret = loudness_log_end(ipc_context, i);
-                    if (ret == 0)
-                    {
-                        float uptime;
-                        uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                        printf("[%.3f] %d, Loudness log end\n", uptime, i);
-                    }
-
-                    if (strlen(status[i].loudness_log_name))
-                    {
-                        ret = update_log_list_end_data(&database_context,
-                                                    status[i].loudness_log_name,
-                                                    time(NULL));
-                        if (ret != 0)
-                        {
-                            fprintf(stderr,
-                                    "Could not update log list end data\n");
-                        }
-
-                        status[i].loudness_log_name[0] = 0;
-                    }
-
                     ret = loudness_reset(ipc_context, i);
                     if (ret != 0)
                     {
                         fprintf(stderr, "Could not reset loudness\n");
-                    }
-
-                    char *channel_name = NULL;
-                    ret = epg_get_channel_name(epg_context,
-                                               status[i].channel,
-                                               &channel_name);
-                    if (ret != 0)
-                    {
-                        channel_name = "";
-                    }
-
-                    LogList log_list;
-                    ret = loudness_log_start(ipc_context, i, status[i].channel,
-                                             channel_name, loudness_log_path,
-                                             &log_list);
-                    if (ret == 0)
-                    {
-                        float uptime;
-                        uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                        printf("[%.3f] %d, Loudness log start\n", uptime, i);
-
-                        ret = save_log_list_data(&database_context, &log_list,
-                                                 1);
-                        if (ret != 0)
-                        {
-                            fprintf(stderr, "Could not save log list data\n");
-                        }
-
-                        strncpy(status[i].loudness_log_name, log_list.name,
-                                sizeof(status[i].loudness_log_name));
-                    }
-                    else
-                    {
-                        status[i].loudness_log_name[0] = 0;
                     }
 
                     if (status[i].recording)
@@ -4010,6 +3952,15 @@ int main(int argc, char **argv)
                             }
 
                             status[i].av_record_name[0] = 0;
+                        }
+
+                        char *channel_name = NULL;
+                        ret = epg_get_channel_name(epg_context,
+                                                   status[i].channel,
+                                                   &channel_name);
+                        if (ret != 0)
+                        {
+                            channel_name = "";
                         }
 
                         PlaybackList playback_list;
