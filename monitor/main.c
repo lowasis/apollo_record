@@ -329,6 +329,7 @@ int main(int argc, char **argv)
     char av_record_name[FILE_NAME_LENGTH];
     int av_record_flag = 0;
 
+    AnalyzerContext loudness_log_analyzer_context;
     AnalyzerContext av_record_analyzer_context;
 
     int program_end_flag = 0;
@@ -353,6 +354,8 @@ int main(int argc, char **argv)
                 case IPC_COMMAND_LOUDNESS_LOG_START:
                     if (loudness_log_flag)
                     {
+                        analyzer_uninit(&loudness_log_analyzer_context);
+
                         logger_uninit(&logger_context);
 
                         printf("[%.3f] Loudness log end (%s)\n", uptime,
@@ -377,6 +380,17 @@ int main(int argc, char **argv)
                         continue;
                     }
 
+                    ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS,
+                                        &loudness_log_analyzer_context);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not initialize "
+                                        "loudness log analyzer");
+
+                        program_end_flag = 1;
+                        continue;
+                    }
+
                     printf("[%.3f] Loudness log start (%s)\n", uptime,
                            loudness_log_name);
 
@@ -390,6 +404,8 @@ int main(int argc, char **argv)
                         printf("[%.3f] Already loudness log ended\n", uptime);
                         break;
                     }
+
+                    analyzer_uninit(&loudness_log_analyzer_context);
 
                     logger_uninit(&logger_context);
 
@@ -657,6 +673,19 @@ int main(int argc, char **argv)
             continue;
         }
 
+        if (loudness_log_flag)
+        {
+            ret = analyzer_send_frame(&loudness_log_analyzer_context,
+                                      audio_frame, received_audio_frame_count);
+            if (ret != 0)
+            {
+                fprintf(stderr, "Could not send loudness log analyzer frame");
+
+                program_end_flag = 1;
+                continue;
+            }
+        }
+
         if (av_record_flag)
         {
             ret = analyzer_send_frame(&av_record_analyzer_context, audio_frame,
@@ -707,6 +736,18 @@ int main(int argc, char **argv)
                 min = (uptime % 3600000) / 60000;
                 sec = (uptime % 60000) / 1000;
                 msec = uptime % 1000;
+
+                ret = analyzer_get_loudness(&loudness_log_analyzer_context,
+                                            &momentary, &shortterm,
+                                            &integrated);
+                if (ret != 0)
+                {
+                    fprintf(stderr, "Could not get loudness");
+
+                    program_end_flag = 1;
+                    continue;
+                }
+
                 ret = logger_printf(&logger_context, LOGGER_LEVEL_DEFAULT,
                                     "  %02d:%02d:%02d.%03d   %2.1f   %2.1f\n",
                                     hour, min, sec, msec, momentary,
