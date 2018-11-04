@@ -471,11 +471,12 @@ int main(int argc, char **argv)
                             continue;
                         }
 
-                        ipc_message.command =
+                        IpcMessage ipc_message_2;
+                        ipc_message_2.command =
                                             IPC_COMMAND_AV_RECORD_LOUDNESS_DATA;
-                        snprintf(ipc_message.arg, sizeof(ipc_message.arg),
+                        snprintf(ipc_message_2.arg, sizeof(ipc_message_2.arg),
                                  "%s %2.1f", av_record_name, integrated);
-                        ret = ipc_send_message(&ipc_context, &ipc_message);
+                        ret = ipc_send_message(&ipc_context, &ipc_message_2);
                         if (ret == 0)
                         {
                             float uptime;
