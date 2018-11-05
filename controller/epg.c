@@ -771,6 +771,52 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     return 0;
 }
 
+int epg_get_channel_data(EpgContext *context, EpgChannelData **data, int *count)
+{
+    int ret;
+
+    if (!context || !data || !count)
+    {
+        return -1;
+    }
+
+    const ChannelTable *table = NULL;
+    for (int i = 0; operator_table[i].channel_table; i++)
+    {
+        if (context->oper == operator_table[i].oper)
+        {
+            table = operator_table[i].channel_table;
+            break;
+        }
+    }
+
+    if (!table)
+    {
+        fprintf(stderr, "Could not find broadcast service operator\n");
+        return -1;
+    }
+
+    int i;
+    for (i = 0; table[i].channel_name; i++);
+    *count = i;
+
+    *data = (EpgChannelData *)malloc(sizeof(EpgChannelData) * *count);
+    if (!*data)
+    {
+        fprintf(stderr, "Could not allocate EPG channel data buffer\n");
+
+        return -1;
+    }
+
+    for (i = 0; table[i].channel_name; i++)
+    {
+        (*data)[i].num = table[i].channel;
+        (*data)[i].name = (char *)table[i].channel_name;
+    }
+
+    return 0;
+}
+
 int epg_get_channel_name(EpgContext *context, int channel, char **name)
 {
     int ret;

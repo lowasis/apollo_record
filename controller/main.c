@@ -3466,6 +3466,70 @@ int main(int argc, char **argv)
                     break;
                 }
 
+                case MESSENGER_MESSAGE_TYPE_CHANNEL_LIST_REQUEST:
+                {
+                    printf("[%.3f] Channel list request\n", uptime);
+
+                    EpgChannelData *list = NULL;
+                    int count = 0;
+                    ret = epg_get_channel_data(epg_context, &list, &count);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not get channel list data\n");
+                        break;
+                    }
+
+                    MessengerChannelListData *data;
+                    data = (MessengerChannelListData *)malloc(
+                                              sizeof(MessengerChannelListData) *
+                                              count);
+                    if (!data)
+                    {
+                        fprintf(stderr, "Could not allocate messenger "
+                                        "channel list data buffer\n");
+
+                        if (list)
+                        {
+                            free(list);
+                        }
+                        break;
+                    }
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        data[i].num = list[i].num;
+                        strncpy(data[i].name, list[i].name,
+                                sizeof(data[i].name));
+                    }
+
+                    if (list)
+                    {
+                        free(list);
+                    }
+
+                    MessengerMessage messenger_message;
+                    messenger_message.type =
+                                            MESSENGER_MESSAGE_TYPE_CHANNEL_LIST;
+                    strncpy(messenger_message.ip, my_ip,
+                            sizeof(messenger_message.ip));
+                    messenger_message.number = messenger_recv_message.number;
+                    messenger_message.count = count;
+                    messenger_message.data = (void *)data;
+                    ret = messenger_send_message(&messenger_context,
+                                                 &messenger_message);
+                    if (ret != 0)
+                    {
+                        fprintf(stderr, "Could not send messenger "
+                                        "channel list message\n");
+                    }
+
+                    if (data)
+                    {
+                        free(data);
+                    }
+                    break;
+                }
+
                 default:
                 {
                     break;

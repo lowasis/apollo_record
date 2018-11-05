@@ -24,7 +24,9 @@ typedef enum {
     MESSENGER_MESSAGE_TYPE_LOG_LIST,
     MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST,
     MESSENGER_MESSAGE_TYPE_USER_LOUDNESS,
-    MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST
+    MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST,
+    MESSENGER_MESSAGE_TYPE_CHANNEL_LIST,
+    MESSENGER_MESSAGE_TYPE_CHANNEL_LIST_REQUEST,
 } MessengerMessageType;
 
 typedef struct MessengerMessage {
@@ -112,6 +114,11 @@ typedef struct MessengerUserLoudnessData {
 typedef struct MessengerUserLoudnessRequestData {
     char name[128];
 } MessengerUserLoudnessRequestData;
+
+typedef struct MessengerChannelListData {
+    int num;
+    char name[24];
+} MessengerChannelListData;
 
 typedef struct MessengerContext {
     int fd;

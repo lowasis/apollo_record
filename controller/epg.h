@@ -20,6 +20,11 @@ typedef struct EpgData {
     char title[128];
 } EpgData;
 
+typedef struct EpgChannelData {
+    int num;
+    char *name;
+} EpgChannelData;
+
 typedef struct EpgContext {
     char *name;
     EpgBroadcastServiceOperator oper;
@@ -34,6 +39,8 @@ int epg_request_data(EpgContext *context, int channel,
                      EpgRequestDataCallback callback, void *callback_arg);
 int epg_receive_data(EpgContext *context, EpgData **data, int *count);
 int epg_get_channel_name(EpgContext *context, int channel, char **name);
+int epg_get_channel_data(EpgContext *context, EpgChannelData **data,
+                         int *count);
 
 #ifdef __cplusplus
 }
