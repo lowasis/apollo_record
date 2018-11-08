@@ -13,6 +13,7 @@
 #include "epg_channel_table_skb.h"
 #include "epg_channel_table_kt.h"
 #include "epg_channel_table_lgu.h"
+#include "epg_channel_table_dlive.h"
 #include "epg.h"
 
 
@@ -34,6 +35,7 @@ static const struct {
     {EPG_BROADCAST_SERVICE_OPERATOR_SKB, channel_table_skb},
     {EPG_BROADCAST_SERVICE_OPERATOR_KT, channel_table_kt},
     {EPG_BROADCAST_SERVICE_OPERATOR_LGU, channel_table_lgu},
+    {EPG_BROADCAST_SERVICE_OPERATOR_DLIVE, channel_table_dlive},
     {0, NULL}
 };
 
