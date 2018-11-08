@@ -4,7 +4,7 @@ channel_json_file="../../external/epg2xml/Channel.json"
 item_per_line=2
 
 if [ "$#" -ne 3 ]; then
-    echo "Usage : $0 [isp_name={skb,kt,lgu}] [start_channel_number] [end_channel_number]"
+    echo "Usage : $0 [isp_name={skb,kt,lgu,dlive}] [start_channel_number] [end_channel_number]"
     exit
 fi
 
@@ -14,6 +14,8 @@ elif [ "$1" == "kt" ]; then
     isp="KT"
 elif [ "$1" == "lgu" ]; then
     isp="LG"
+elif [ "$1" == "dlive" ]; then
+    isp="DLIVE"
 else
     echo "Unknown ISP : $1"
     exit
