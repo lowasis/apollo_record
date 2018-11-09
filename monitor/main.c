@@ -144,7 +144,7 @@ static void *video_thread(void *a)
                      &video_context);
      if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize video");
+        fprintf(stderr, "Could not initialize video\n");
 
         free(a);
 
@@ -157,7 +157,7 @@ static void *video_thread(void *a)
     ret = video_alloc_frame(&video_context, &video_frame);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate video frame");
+        fprintf(stderr, "Could not allocate video frame\n");
 
         video_uninit(&video_context);
 
@@ -171,7 +171,7 @@ static void *video_thread(void *a)
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not start video capture");
+        fprintf(stderr, "Could not start video capture\n");
 
         video_free_frame(video_frame);
 
@@ -193,7 +193,7 @@ static void *video_thread(void *a)
                                   &received_video_frame_size);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not receive video frame");
+            fprintf(stderr, "Could not receive video frame\n");
 
             continue;
         }
@@ -210,7 +210,7 @@ static void *video_thread(void *a)
                                              received_video_frame_size);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not write recorder video frame");
+                fprintf(stderr, "Could not write recorder video frame\n");
             }
             else
             {
@@ -285,7 +285,7 @@ static void *audio_thread(void *a)
                      &audio_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize audio");
+        fprintf(stderr, "Could not initialize audio\n");
 
         free(a);
 
@@ -299,7 +299,7 @@ static void *audio_thread(void *a)
     ret = audio_alloc_frame(&audio_context, &audio_frame, &audio_frame_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate audio frame");
+        fprintf(stderr, "Could not allocate audio frame\n");
 
         audio_uninit(&audio_context);
 
@@ -320,7 +320,7 @@ static void *audio_thread(void *a)
                                   &received_audio_frame_count);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not receive audio frame");
+            fprintf(stderr, "Could not receive audio frame\n");
 
             continue;
         }
@@ -336,7 +336,7 @@ static void *audio_thread(void *a)
                                              received_audio_frame_count);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not write recorder audio frame");
+                fprintf(stderr, "Could not write recorder audio frame\n");
             }
             else
             {
@@ -364,7 +364,7 @@ static void *audio_thread(void *a)
                                       received_audio_frame_count);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not send analyzer frame");
+                fprintf(stderr, "Could not send analyzer frame\n");
             }
 
             ret = pthread_mutex_unlock(arg->analyzer_mutex);
@@ -389,7 +389,7 @@ static void *audio_thread(void *a)
                 if (ret != 0)
                 {
                     fprintf(stderr,
-                            "Could not send loudness log analyzer frame");
+                            "Could not send loudness log analyzer frame\n");
                 }
             }
 
@@ -415,7 +415,7 @@ static void *audio_thread(void *a)
                 if (ret != 0)
                 {
                     fprintf(stderr, 
-                            "Could not send AV record analyzer frame");
+                            "Could not send AV record analyzer frame\n");
                 }
             }
 
@@ -507,7 +507,7 @@ int main(int argc, char **argv)
     ret = fifo_init(av_fifo_name, &fifo_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize FIFO");
+        fprintf(stderr, "Could not initialize FIFO\n");
 
         return -1;
     }
@@ -516,7 +516,7 @@ int main(int argc, char **argv)
     ret = fifo_alloc_buffer(&fifo_context, AV_FIFO_BUFFER_SIZE, &fifo_buffer);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate FIFO buffer");
+        fprintf(stderr, "Could not allocate FIFO buffer\n");
 
         fifo_uninit(&fifo_context);
 
@@ -534,7 +534,7 @@ int main(int argc, char **argv)
                         &recorder_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize recorder");
+        fprintf(stderr, "Could not initialize recorder\n");
 
         fifo_free_buffer(fifo_buffer);
 
@@ -547,7 +547,7 @@ int main(int argc, char **argv)
     ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS, &analyzer_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize analyzer");
+        fprintf(stderr, "Could not initialize analyzer\n");
 
         recorder_uninit(&recorder_context);
 
@@ -562,7 +562,7 @@ int main(int argc, char **argv)
     ret = ipc_init(ipc_socket_name, &ipc_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize IPC");
+        fprintf(stderr, "Could not initialize IPC\n");
 
         analyzer_uninit(&analyzer_context);
 
@@ -734,7 +734,7 @@ int main(int argc, char **argv)
                                       1, &logger_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize logger");
+                        fprintf(stderr, "Could not initialize logger\n");
                         break;
                     }
 
@@ -752,7 +752,7 @@ int main(int argc, char **argv)
                     if (ret != 0)
                     {
                         fprintf(stderr, "Could not initialize "
-                                        "loudness log analyzer");
+                                        "loudness log analyzer\n");
 
                         logger_uninit(&logger_context);
                     }
@@ -836,7 +836,7 @@ int main(int argc, char **argv)
                                         &streamer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize streamer");
+                        fprintf(stderr, "Could not initialize streamer\n");
                         break;
                     }
 
@@ -877,7 +877,8 @@ int main(int argc, char **argv)
                                                     &integrated);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not get AV record loudness");
+                            fprintf(stderr,
+                                    "Could not get AV record loudness\n");
                         }
                         else
                         {
@@ -927,7 +928,7 @@ int main(int argc, char **argv)
                     av_record_fp = fopen(av_record_name, "wb");
                     if (!av_record_fp)
                     {
-                        fprintf(stderr, "Could not open AV record file");
+                        fprintf(stderr, "Could not open AV record file\n");
                         break;
                     }
 
@@ -945,7 +946,7 @@ int main(int argc, char **argv)
                     if (ret != 0)
                     {
                         fprintf(stderr, "Could not initialize "
-                                        "AV record analyzer");
+                                        "AV record analyzer\n");
 
                         fclose(av_record_fp);
                     }
@@ -984,7 +985,7 @@ int main(int argc, char **argv)
                                                 &integrated);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not get av record loudness");
+                        fprintf(stderr, "Could not get av record loudness\n");
                     }
                     else
                     {
@@ -1032,7 +1033,7 @@ int main(int argc, char **argv)
                                         &analyzer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize analyzer");
+                        fprintf(stderr, "Could not initialize analyzer\n");
                     }
                     else
                     {
@@ -1073,7 +1074,7 @@ int main(int argc, char **argv)
                                             &shortterm, &integrated);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not get loudness");
+                    fprintf(stderr, "Could not get loudness\n");
                 }
                 else
                 {
@@ -1113,7 +1114,7 @@ int main(int argc, char **argv)
                                                 &integrated);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not get loudness");
+                        fprintf(stderr, "Could not get loudness\n");
                     }
                     else
                     {
@@ -1134,7 +1135,7 @@ int main(int argc, char **argv)
                                             integrated);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not write loudness log");
+                            fprintf(stderr, "Could not write loudness log\n");
                         }
                         else
                         {
@@ -1168,7 +1169,7 @@ int main(int argc, char **argv)
                                     received_fifo_buffer_size);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not send AV stream");
+                    fprintf(stderr, "Could not send AV stream\n");
                 }
                 else
                 {
@@ -1185,7 +1186,7 @@ int main(int argc, char **argv)
                              av_record_fp);
                 if (ret != received_fifo_buffer_size)
                 {
-                    fprintf(stderr, "Could not write AV record");
+                    fprintf(stderr, "Could not write AV record\n");
                 }
                 else
                 {
