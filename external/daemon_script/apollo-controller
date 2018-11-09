@@ -61,6 +61,20 @@ do_stop()
     log_end_msg $exitval
 }
 
+check_status()
+{
+    if [ -f $PIDDIR/$NAME.pid ]; then
+        PID=`cat $PIDDIR/$NAME.pid`
+        if [ -z "`ps axj | grep ${PID}| grep -v grep`" ]; then
+            log_daemon_msg "$DESC is NOT runnig but PIDFILE is Exists"
+        else
+            log_daemon_msg "[${PID}] $DESC is running"
+        fi                                                                                    
+    else
+        log_daemon_msg "$DESC is not running"
+    fi
+}
+
 ###################################################################################################
 
 case "$1" in
@@ -78,6 +92,10 @@ restart)
     sleep 1
 
     do_start
+    ;;
+
+status)
+    check_status
     ;;
 
 *)
