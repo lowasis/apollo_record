@@ -1,0 +1,89 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: apollo-controller
+# Required-Start:   $network $remote_fs $syslog $all
+# Required-Stop:    $network $remote_fs $syslog
+# Default-Start:    2 3 4 5
+# Default-Stop:     0 1 6
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+NAME=apollo_controller
+DAEMON=/usr/local/bin/apollo_controller
+DESC="Apollo Controller Process"
+USERID=root
+PIDDIR="/usr/local/var/run/apollo"
+INDEX=5
+PORT=3400
+
+. /lib/lsb/init-functions
+
+do_start()
+{
+    exitval=0
+
+    for(( i=0; i<$INDEX; i++ )); do
+        OPTIONS=$OPTIONS"-i /usr/local/var/run/apollo/apollo_record$i.socket -l /usr/local/var/run/lirc/lircd$i "
+    done
+
+    OPTIONS=$OPTIONS"-s /usr/local/var/run/apollo/apollo_record.db -m $PORT -L /mnt/apollo/log/ -R /mnt/apollo/record -E /usr/local/var/run/apollo/ "
+
+    if pidofproc -p  $PIDDIR/$NAME.pid $DAEMON  > /dev/null; then
+        log_daemon_msg "$DESC is already running"
+    else
+        log_daemon_msg "Starting $DESC"
+        start-stop-daemon --start --quiet --oknodo --pidfile "$PIDDIR/$NAME".pid \
+            --chuid $USERID:$USERID --background --make-pidfile --exec $DAEMON -- $OPTIONS
+
+        log_progress_msg $NAME
+        exitval=$?
+        log_end_msg $exitval
+    fi
+}
+
+do_stop()
+{
+    exitval=0
+
+    log_progress_msg $NAME
+
+    if pidofproc -p  $PIDDIR/$NAME.pid $DAEMON  > /dev/null; then
+        log_daemon_msg "Stopping $DESC"
+        start-stop-daemon --stop --verbose --oknodo --pidfile "$PIDDIR/$NAME".pid \
+            --exec $DAEMON
+
+        exitval=$?
+    else
+        log_daemon_msg "$DESC is not running"
+    fi
+
+    exitval=$?
+    log_end_msg $exitval
+}
+
+###################################################################################################
+
+case "$1" in
+start)
+    do_start
+    ;;
+
+stop)
+    do_stop
+    ;;
+
+restart)
+    do_stop
+
+    sleep 1
+
+    do_start
+    ;;
+
+*)
+
+echo "Usage : service apollo-controller {start|stop|restart|status}" >&2
+
+esac
+exit 0
+

@@ -1,0 +1,52 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: apollo-lircd
+# Required-Start:   $network $remote_fs $syslog $time
+# Required-Stop:    $network $remote_fs $syslog $time
+# Default-Start:    2 3 4 5
+# Default-Stop:     0 1 6
+# Short-Description: APOLLO-lircd
+# X-Start-Before: apollo-monitor apollo-controller
+### END INIT INFO
+
+do_start()
+{
+    serial_list=`dmesg | grep "Product: FT230X Basic UART" -A 2 | grep "SerialNumber: " | awk -F ' ' '{print $6}'`
+
+    index=0
+    for i in $serial_list; do
+        sudo lircd -Hftdix -dserial=$i -o /usr/local/var/run/lirc/lircd$index -P /usr/local/var/run/lirc/lircd$index.pid
+        index=`expr $index + 1`
+    done
+}
+
+do_stop()
+{
+    for(( i=0; i<=4; i++ )); do
+        pkill -F /usr/local/var/run/lirc/lircd$i.pid
+    done
+}
+
+#########################################################################################################
+
+case "$1" in
+start)
+    do_start
+    ;;
+
+stop)
+    do_stop
+    ;;
+
+restart)
+    do_stop
+    sleep 1
+    do_start
+    ;;
+
+*)
+
+echo "Usage : service apollo-lircd {start|stop|restart|status}" >&2
+
+esac
+exit 0
