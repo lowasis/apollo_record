@@ -1,0 +1,88 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides: apollo-monitor
+# Required-Start:   $network $remote_fs $syslog
+# Required-Stop:    $network $remote_fs $syslog
+# Default-Start:    2 3 4 5
+# Default-Stop:     0 1 6
+# Short-Description: APOLLO-Monitor
+# X-Start-Before: apollo-controller
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+NAME=apollo_monitor
+DAEMON=/usr/local/bin/apollo_monitor
+DESC="Apollo Monitor Process"
+USERID=root
+PIDDIR="/usr/local/var/run/apollo"
+
+. /lib/lsb/init-functions
+
+do_start()
+{
+    exitval=0
+    OPTIONS="-v /dev/video$1 -a hw:`expr $1 + 1`,0 -f /usr/local/var/run/apollo/apollo_record$1.ts -s /usr/local/var/run/apollo/apollo_record$1.socket &"
+
+    if pidofproc -p  $PIDDIR/$NAME$1.pid $DAEMON  > /dev/null; then
+        log_progress_msg "$DESC $1 is already running"
+    else
+        log_daemon_msg "Starting $DESC $1"
+        start-stop-daemon --start --quiet --oknodo --pidfile "$PIDDIR/$NAME$1".pid \
+            --chuid $USERID:$USERID --background --make-pidfile --exec $DAEMON -- $OPTIONS
+
+        log_progress_msg $NAME$1
+
+        exitval=$?
+        log_end_msg $exitval
+    fi
+}
+
+do_stop()
+{
+    exitval=0
+
+    log_progress_msg $NAME$1
+
+    if pidofproc -p  $PIDDIR/$NAME$1.pid $DAEMON  > /dev/null; then
+        log_progress_msg "Stopping $DESC $1"
+        start-stop-daemon --stop --verbose --oknodo --pidfile "$PIDDIR/$NAME$1".pid \
+            --exec $DAEMON
+
+        exitval=$?
+    else
+        log_progress_msg "$DESC $1 is not running"
+    fi
+
+    exitval=$?
+    log_end_msg $exitval
+}
+
+###################################################################################################
+
+case "$1" in
+start)
+    for(( i=0; i<=4; i++ )); do
+        do_start "$i"
+    done
+    ;;
+
+stop)
+    for(( i=0; i<=4; i++ )); do
+        do_stop "$i"
+    done
+    ;;
+
+restart)
+    for(( i=0; i<=4; i++ )); do
+        do_stop
+        sleep 1
+        do_start
+    done
+    ;;
+*)
+
+echo "Usage : service apollo-monitor {start|stop|restart|status}" >&2
+
+esac
+exit 0
+
