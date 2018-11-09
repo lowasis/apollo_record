@@ -81,7 +81,7 @@ int logger_printf(LoggerContext *context, LoggerLevel level, char *format, ...)
         ret = gettimeofday(&unix_time, NULL);
         if (ret == -1)
         {
-            fprintf(stderr, "Could not get unix time");
+            fprintf(stderr, "Could not get unix time\n");
 
             return -1;
         }
