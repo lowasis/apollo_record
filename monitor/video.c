@@ -228,8 +228,8 @@ int video_receive_frame(VideoContext *context, char *frame, int *received_size)
     FD_ZERO(&fds);
     FD_SET(context->fd, &fds);
     struct timeval time;
-    time.tv_sec = 0;
-    time.tv_usec = 1000;
+    time.tv_sec = 1;
+    time.tv_usec = 0;
     ret = select(context->fd + 1, &fds, NULL, NULL, &time);
     if (ret == -1)
     {
