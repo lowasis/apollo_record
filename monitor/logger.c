@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <time.h>
 #include <sys/time.h>
+#include "log.h"
 #include "logger.h"
 
 
@@ -16,7 +17,7 @@ int logger_init(char *name, LoggerLevel level, int use_timestamp,
     context->fp = fopen(name, "w");
     if (!context->fp)
     {
-        fprintf(stderr, "Could not open log file\n");
+        log_e("Could not open log file");
 
         return -1;
     }
@@ -81,7 +82,7 @@ int logger_printf(LoggerContext *context, LoggerLevel level, char *format, ...)
         ret = gettimeofday(&unix_time, NULL);
         if (ret == -1)
         {
-            fprintf(stderr, "Could not get unix time\n");
+            log_e("Could not get unix time");
 
             return -1;
         }
@@ -96,7 +97,7 @@ int logger_printf(LoggerContext *context, LoggerLevel level, char *format, ...)
                       unix_time.tv_usec / 1000);
         if (ret == 0)
         {
-            fprintf(stderr, "Could not write timestamp\n");
+            log_e("Could not write timestamp");
 
             return -1;
         }
@@ -108,7 +109,7 @@ int logger_printf(LoggerContext *context, LoggerLevel level, char *format, ...)
     ret = vfprintf(context->fp, format, va);
     if (ret == 0)
     {
-        fprintf(stderr, "Could not write log\n");
+        log_e("Could not write log");
 
         va_end(va);
 

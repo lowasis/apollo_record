@@ -11,6 +11,7 @@
 #include "streamer.h"
 #include "fifo.h"
 #include "ipc.h"
+#include "log.h"
 
 
 typedef struct VideoThreadArg {
@@ -50,15 +51,19 @@ static void print_usage(char *name)
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
            "-f | --fifo name      AV FIFO name\n"
            "-s | --socket name    IPC socket name\n"
-           "", name);
+           "-o | --logout name    Log output (syslog, stdout, def : %s)\n"
+           "-d | --loglvl number  Log level (%d ~ %d, def : %d)\n"
+           "", name, DEFAULT_LOG_OUTPUT, LOG_LEVEL_MIN, LOG_LEVEL_MAX,
+           DEFAULT_LOG_LEVEL);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
                       char **audio_device_name, char **av_fifo_name,
-                      char **ipc_socket_name)
+                      char **ipc_socket_name, char **log_output,
+                      LogLevel *log_level)
 {
     if (!argv || !video_device_name || !audio_device_name || !av_fifo_name ||
-        !ipc_socket_name)
+        !ipc_socket_name || !log_output || !log_level)
     {
         return -1;
     }
@@ -70,13 +75,15 @@ static int get_option(int argc, char **argv, char **video_device_name,
 
     while (1)
     {
-        const char short_options[] = "hv:a:f:s:";
+        const char short_options[] = "hv:a:f:s:o:d:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
             {"fifo", required_argument, NULL, 'f'},
             {"socket", required_argument, NULL, 's'},
+            {"logout", required_argument, NULL, 'o'},
+            {"loglvl", required_argument, NULL, 'd'},
             {0, 0, 0, 0}
         };
         int index;
@@ -109,6 +116,14 @@ static int get_option(int argc, char **argv, char **video_device_name,
 
             case 's':
                 *ipc_socket_name = optarg;
+                break;
+
+            case 'o':
+                *log_output = optarg;
+                break;
+
+            case 'd':
+                *log_level = strtol(optarg, NULL, 10);
                 break;
 
             default:
@@ -144,7 +159,7 @@ static void *video_thread(void *a)
                      &video_context);
      if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize video\n");
+        log_e("Could not initialize video");
 
         free(a);
 
@@ -157,7 +172,7 @@ static void *video_thread(void *a)
     ret = video_alloc_frame(&video_context, &video_frame);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate video frame\n");
+        log_e("Could not allocate video frame");
 
         video_uninit(&video_context);
 
@@ -171,7 +186,7 @@ static void *video_thread(void *a)
     ret = video_start_capture(&video_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not start video capture\n");
+        log_e("Could not start video capture");
 
         video_free_frame(video_frame);
 
@@ -193,7 +208,7 @@ static void *video_thread(void *a)
                                   &received_video_frame_size);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not receive video frame\n");
+            log_e("Could not receive video frame");
 
             continue;
         }
@@ -201,7 +216,7 @@ static void *video_thread(void *a)
         ret = pthread_mutex_lock(arg->recorder_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not lock record mutex\n");
+            log_e("Could not lock record mutex");
         }
         else
         {
@@ -210,20 +225,17 @@ static void *video_thread(void *a)
                                              received_video_frame_size);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not write recorder video frame\n");
+                log_e("Could not write recorder video frame");
             }
             else
             {
-                float uptime;
-                uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                //printf("[%.3f] Video frame recorded\n", uptime);
+                log_d("Video frame recorded");
             }
 
             ret = pthread_mutex_unlock(arg->recorder_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not unlock record mutex\n");
+                log_e("Could not unlock record mutex");
             }
         }
     }
@@ -251,7 +263,7 @@ static int create_video_thread(char *video_device_name,
     arg = (VideoThreadArg *)malloc(sizeof(VideoThreadArg));
     if (!arg)
     {
-        fprintf(stderr, "Could not allocate video thread argument buffer\n");
+        log_e("Could not allocate video thread argument buffer");
 
         return -1;
     }
@@ -264,7 +276,7 @@ static int create_video_thread(char *video_device_name,
     ret = pthread_create(thread, NULL, video_thread, (void *)arg);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not create video thread\n");
+        log_e("Could not create video thread");
 
         free(arg);
 
@@ -285,7 +297,7 @@ static void *audio_thread(void *a)
                      &audio_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize audio\n");
+        log_e("Could not initialize audio");
 
         free(a);
 
@@ -299,7 +311,7 @@ static void *audio_thread(void *a)
     ret = audio_alloc_frame(&audio_context, &audio_frame, &audio_frame_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate audio frame\n");
+        log_e("Could not allocate audio frame");
 
         audio_uninit(&audio_context);
 
@@ -320,7 +332,7 @@ static void *audio_thread(void *a)
                                   &received_audio_frame_count);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not receive audio frame\n");
+            log_e("Could not receive audio frame");
 
             continue;
         }
@@ -328,7 +340,7 @@ static void *audio_thread(void *a)
         ret = pthread_mutex_lock(arg->recorder_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not lock record mutex\n");
+            log_e("Could not lock record mutex");
         }
         else
         {
@@ -336,27 +348,24 @@ static void *audio_thread(void *a)
                                              received_audio_frame_count);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not write recorder audio frame\n");
+                log_e("Could not write recorder audio frame");
             }
             else
             {
-                float uptime;
-                uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                //printf("[%.3f] Audio frame recorded\n", uptime);
+                log_d("Audio frame recorded");
             }
 
             ret = pthread_mutex_unlock(arg->recorder_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not unlock record mutex\n");
+                log_e("Could not unlock record mutex");
             }
         }
 
         ret = pthread_mutex_lock(arg->analyzer_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not lock analyzer mutex\n");
+            log_e("Could not lock analyzer mutex");
         }
         else
         {
@@ -364,20 +373,20 @@ static void *audio_thread(void *a)
                                       received_audio_frame_count);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not send analyzer frame\n");
+                log_e("Could not send analyzer frame");
             }
 
             ret = pthread_mutex_unlock(arg->analyzer_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not unlock analyzer mutex\n");
+                log_e("Could not unlock analyzer mutex");
             }
         }
 
         ret = pthread_mutex_lock(arg->loudness_log_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not lock loudness log mutex\n");
+            log_e("Could not lock loudness log mutex");
         }
         else
         {
@@ -388,22 +397,21 @@ static void *audio_thread(void *a)
                                           received_audio_frame_count);
                 if (ret != 0)
                 {
-                    fprintf(stderr,
-                            "Could not send loudness log analyzer frame\n");
+                    log_e("Could not send loudness log analyzer frame");
                 }
             }
 
             ret = pthread_mutex_unlock(arg->loudness_log_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not unlock loudness log mutex\n");
+                log_e("Could not unlock loudness log mutex");
             }
         }
 
         ret = pthread_mutex_lock(arg->av_record_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not lock AV record mutex\n");
+            log_e("Could not lock AV record mutex");
         }
         else
         {
@@ -414,15 +422,14 @@ static void *audio_thread(void *a)
                                           received_audio_frame_count);
                 if (ret != 0)
                 {
-                    fprintf(stderr, 
-                            "Could not send AV record analyzer frame\n");
+                    log_e("Could not send AV record analyzer frame");
                 }
             }
 
             ret = pthread_mutex_unlock(arg->av_record_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not unlock AV record mutex\n");
+                log_e("Could not unlock AV record mutex");
             }
         }
     }
@@ -455,7 +462,7 @@ static int create_audio_thread(char *audio_device_name,
     arg = (AudioThreadArg *)malloc(sizeof(AudioThreadArg));
     if (!arg)
     {
-        fprintf(stderr, "Could not allocate audio thread argument buffer\n");
+        log_e("Could not allocate audio thread argument buffer");
 
         return -1;
     }
@@ -476,7 +483,7 @@ static int create_audio_thread(char *audio_device_name,
     ret = pthread_create(thread, NULL, audio_thread, (void *)arg);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not create audio thread\n");
+        log_e("Could not create audio thread");
 
         free(arg);
 
@@ -494,8 +501,10 @@ int main(int argc, char **argv)
     char *audio_device_name = NULL;
     char *av_fifo_name = NULL;
     char *ipc_socket_name = NULL;
+    char *log_output = DEFAULT_LOG_OUTPUT;
+    LogLevel log_level = DEFAULT_LOG_LEVEL;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
-                     &av_fifo_name, &ipc_socket_name);
+                     &av_fifo_name, &ipc_socket_name, &log_output, &log_level);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -503,11 +512,13 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    log_open(argv[0], log_output, log_level);
+
     FifoContext fifo_context;
     ret = fifo_init(av_fifo_name, &fifo_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize FIFO\n");
+        log_e("Could not initialize FIFO");
 
         return -1;
     }
@@ -516,7 +527,7 @@ int main(int argc, char **argv)
     ret = fifo_alloc_buffer(&fifo_context, AV_FIFO_BUFFER_SIZE, &fifo_buffer);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate FIFO buffer\n");
+        log_e("Could not allocate FIFO buffer");
 
         fifo_uninit(&fifo_context);
 
@@ -534,7 +545,7 @@ int main(int argc, char **argv)
                         &recorder_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize recorder\n");
+        log_e("Could not initialize recorder");
 
         fifo_free_buffer(fifo_buffer);
 
@@ -547,7 +558,7 @@ int main(int argc, char **argv)
     ret = analyzer_init(AUDIO_SAMPLERATE, AUDIO_CHANNELS, &analyzer_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize analyzer\n");
+        log_e("Could not initialize analyzer");
 
         recorder_uninit(&recorder_context);
 
@@ -562,7 +573,7 @@ int main(int argc, char **argv)
     ret = ipc_init(ipc_socket_name, &ipc_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize IPC\n");
+        log_e("Could not initialize IPC");
 
         analyzer_uninit(&analyzer_context);
 
@@ -616,7 +627,7 @@ int main(int argc, char **argv)
                               &video_thread_t);
      if (ret != 0)
     {
-        fprintf(stderr, "Could not create video thread\n");
+        log_e("Could not create video thread");
 
         pthread_mutex_destroy(&av_record_mutex);
 
@@ -650,7 +661,7 @@ int main(int argc, char **argv)
                               &audio_thread_t);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not create audio thread\n");
+        log_e("Could not create audio thread");
 
         program_end_flag = 1;
 
@@ -687,10 +698,7 @@ int main(int argc, char **argv)
         ret = ipc_receive_message(&ipc_context, &ipc_message);
         if (ret == 0)
         {
-            float uptime;
-            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-            //printf("[%.3f] IPC message received\n", uptime);
+            log_d("IPC message received");
 
             switch (ipc_message.command)
             {
@@ -700,8 +708,7 @@ int main(int argc, char **argv)
                         ret = pthread_mutex_lock(&loudness_log_mutex);
                         if (ret != 0)
                         {
-                            fprintf(stderr,
-                                    "Could not lock loudness log mutex\n");
+                            log_e("Could not lock loudness log mutex");
                             break;
                         }
 
@@ -711,20 +718,18 @@ int main(int argc, char **argv)
 
                         logger_uninit(&logger_context);
 
-                        printf("[%.3f] Loudness log end (%s)\n", uptime,
-                               loudness_log_name);
+                        log_i("Loudness log end (%s)", loudness_log_name);
 
                         ret = pthread_mutex_unlock(&loudness_log_mutex);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not unlock "
-                                            "loudness log mutex\n");
+                            log_e("Could not unlock loudness log mutex");
                         }
                     }
 
                     if (strlen(ipc_message.arg) == 0)
                     {
-                        printf("[%.3f] Null loudness log name\n", uptime);
+                        log_i("Null loudness log name");
                         break;
                     }
 
@@ -734,14 +739,14 @@ int main(int argc, char **argv)
                                       1, &logger_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize logger\n");
+                        log_e("Could not initialize logger");
                         break;
                     }
 
                     ret = pthread_mutex_lock(&loudness_log_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not lock loudness log mutex\n");
+                        log_e("Could not lock loudness log mutex");
 
                         logger_uninit(&logger_context);
                         break;
@@ -751,8 +756,7 @@ int main(int argc, char **argv)
                                         &loudness_log_analyzer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize "
-                                        "loudness log analyzer\n");
+                        log_e("Could not initialize loudness log analyzer");
 
                         logger_uninit(&logger_context);
                     }
@@ -761,29 +765,27 @@ int main(int argc, char **argv)
                         loudness_log_flag = 1;
                         loudness_log_start_usec = get_usec();
 
-                        printf("[%.3f] Loudness log start (%s)\n", uptime,
-                               loudness_log_name);
+                        log_i("Loudness log start (%s)", loudness_log_name);
                     }
 
                     ret = pthread_mutex_unlock(&loudness_log_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not unlock "
-                                        "loudness log mutex\n");
+                        log_e("Could not unlock loudness log mutex");
                     }
                     break;
 
                 case IPC_COMMAND_LOUDNESS_LOG_END:
                     if (!loudness_log_flag)
                     {
-                        printf("[%.3f] Already loudness log ended\n", uptime);
+                        log_i("Already loudness log ended");
                         break;
                     }
 
                     ret = pthread_mutex_lock(&loudness_log_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not lock loudness log mutex\n");
+                        log_e("Could not lock loudness log mutex");
                         break;
                     }
 
@@ -793,14 +795,12 @@ int main(int argc, char **argv)
 
                     logger_uninit(&logger_context);
 
-                    printf("[%.3f] Loudness log end (%s)\n", uptime,
-                           loudness_log_name);
+                    log_i("Loudness log end (%s)", loudness_log_name);
 
                     ret = pthread_mutex_unlock(&loudness_log_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr,
-                                "Could not unlock loudness log mutex\n");
+                        log_e("Could not unlock loudness log mutex");
                     }
                     break;
 
@@ -811,20 +811,20 @@ int main(int argc, char **argv)
 
                         av_stream_flag = 0;
 
-                        printf("[%.3f] AV stream end (%s %d)\n", uptime,
-                               av_stream_ip_name, av_stream_port_number);
+                        log_i("AV stream end (%s %d)", av_stream_ip_name,
+                              av_stream_port_number);
                     }
 
                     char *name = strtok(ipc_message.arg, " ");
                     if (!name || strlen(name) == 0)
                     {
-                        printf("[%.3f] Null AV stream ip name\n", uptime);
+                        log_i("Null AV stream ip name");
                         break;
                     }
                     char *number = strtok(NULL, " ");
                     if (!number || strlen(number) == 0)
                     {
-                        printf("[%.3f] Null AV stream port number\n", uptime);
+                        log_i("Null AV stream port number");
                         break;
                     }
 
@@ -836,20 +836,20 @@ int main(int argc, char **argv)
                                         &streamer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize streamer\n");
+                        log_e("Could not initialize streamer");
                         break;
                     }
 
                     av_stream_flag = 1;
 
-                    printf("[%.3f] AV stream start (%s %d)\n", uptime,
-                           av_stream_ip_name, av_stream_port_number);
+                    log_i("AV stream start (%s %d)", av_stream_ip_name,
+                          av_stream_port_number);
                     break;
 
                 case IPC_COMMAND_AV_STREAM_END:
                     if (!av_stream_flag)
                     {
-                        printf("[%.3f] Already AV stream ended\n", uptime);
+                        log_i("Already AV stream ended");
                         break;
                     }
 
@@ -857,8 +857,8 @@ int main(int argc, char **argv)
 
                     av_stream_flag = 0;
 
-                    printf("[%.3f] AV stream end (%s %d)\n", uptime,
-                           av_stream_ip_name, av_stream_port_number);
+                    log_i("AV stream end (%s %d)", av_stream_ip_name,
+                          av_stream_port_number);
                     break;
 
                 case IPC_COMMAND_AV_RECORD_START:
@@ -867,7 +867,7 @@ int main(int argc, char **argv)
                         ret = pthread_mutex_lock(&av_record_mutex);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not lock AV record mutex\n");
+                            log_e("Could not lock AV record mutex");
                             break;
                         }
 
@@ -877,8 +877,7 @@ int main(int argc, char **argv)
                                                     &integrated);
                         if (ret != 0)
                         {
-                            fprintf(stderr,
-                                    "Could not get AV record loudness\n");
+                            log_e("Could not get AV record loudness");
                         }
                         else
                         {
@@ -892,11 +891,8 @@ int main(int argc, char **argv)
                                                    &ipc_message_2);
                             if (ret == 0)
                             {
-                                float uptime;
-                                uptime = (float)(get_usec() - start_usec) /
-                                         1000000;
-
-                                //printf("[%.3f] IPC message sent\n", uptime);
+                                log_d("AV record loudness data "
+                                      "IPC message sent");
                             }
                         }
 
@@ -906,20 +902,19 @@ int main(int argc, char **argv)
 
                         fclose(av_record_fp);
 
-                        printf("[%.3f] AV record end (%s, %2.1f)\n", uptime,
-                               av_record_name, integrated);
+                        log_i("AV record end (%s, %2.1f)", av_record_name,
+                              integrated);
 
                         ret = pthread_mutex_unlock(&av_record_mutex);
                         if (ret != 0)
                         {
-                            fprintf(stderr,
-                                    "Could not unlock AV record mutex\n");
+                            log_e("Could not unlock AV record mutex");
                         }
                     }
 
                     if (strlen(ipc_message.arg) == 0)
                     {
-                        printf("[%.3f] Null AV record name\n", uptime);
+                        log_i("Null AV record name");
                         break;
                     }
 
@@ -928,14 +923,14 @@ int main(int argc, char **argv)
                     av_record_fp = fopen(av_record_name, "wb");
                     if (!av_record_fp)
                     {
-                        fprintf(stderr, "Could not open AV record file\n");
+                        log_e("Could not open AV record file");
                         break;
                     }
 
                     ret = pthread_mutex_lock(&av_record_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not lock AV record mutex\n");
+                        log_e("Could not lock AV record mutex");
 
                         fclose(av_record_fp);
                         break;
@@ -945,8 +940,7 @@ int main(int argc, char **argv)
                                         &av_record_analyzer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize "
-                                        "AV record analyzer\n");
+                        log_e("Could not initialize AV record analyzer");
 
                         fclose(av_record_fp);
                     }
@@ -954,28 +948,27 @@ int main(int argc, char **argv)
                     {
                         av_record_flag = 1;
 
-                        printf("[%.3f] AV record start (%s)\n", uptime,
-                               av_record_name);
+                        log_i("AV record start (%s)", av_record_name);
                     }
 
                     ret = pthread_mutex_unlock(&av_record_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not unlock AV record mutex\n");
+                        log_e("Could not unlock AV record mutex");
                     }
                     break;
 
                 case IPC_COMMAND_AV_RECORD_END:
                     if (!av_record_flag)
                     {
-                        printf("[%.3f] Already AV record ended\n", uptime);
+                        log_i("Already AV record ended");
                         break;
                     }
 
                     ret = pthread_mutex_lock(&av_record_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not lock AV record mutex\n");
+                        log_e("Could not lock AV record mutex");
                         break;
                     }
 
@@ -985,7 +978,7 @@ int main(int argc, char **argv)
                                                 &integrated);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not get av record loudness\n");
+                        log_e("Could not get av record loudness");
                     }
                     else
                     {
@@ -996,10 +989,7 @@ int main(int argc, char **argv)
                         ret = ipc_send_message(&ipc_context, &ipc_message);
                         if (ret == 0)
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            //printf("[%.3f] IPC message sent\n", uptime);
+                            log_d("AV record loudness data IPC message sent");
                         }
                     }
 
@@ -1009,13 +999,13 @@ int main(int argc, char **argv)
 
                     fclose(av_record_fp);
 
-                    printf("[%.3f] AV record end (%s, %2.1f)\n", uptime,
-                           av_record_name, integrated);
+                    log_i("AV record end (%s, %2.1f)", av_record_name,
+                          integrated);
 
                     ret = pthread_mutex_unlock(&av_record_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not unlock AV record mutex\n");
+                        log_e("Could not unlock AV record mutex");
                     }
                     break;
 
@@ -1023,7 +1013,7 @@ int main(int argc, char **argv)
                     ret = pthread_mutex_lock(&analyzer_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not lock analyzer mutex\n");
+                        log_e("Could not lock analyzer mutex");
                         break;
                     }
 
@@ -1033,24 +1023,24 @@ int main(int argc, char **argv)
                                         &analyzer_context);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not initialize analyzer\n");
+                        log_e("Could not initialize analyzer");
                     }
                     else
                     {
-                        printf("[%.3f] Analyzer reset\n", uptime);
+                        log_i("Analyzer reset");
                     }
 
                     ret = pthread_mutex_unlock(&analyzer_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not unlock analyzer mutex\n");
+                        log_e("Could not unlock analyzer mutex");
                     }
                     break;
 
                 case IPC_COMMAND_PROGRAM_END:
                     program_end_flag = 1;
 
-                    printf("[%.3f] Program end\n", uptime);
+                    log_i("Program end");
                     continue;
 
                 default:
@@ -1065,7 +1055,7 @@ int main(int argc, char **argv)
             ret = pthread_mutex_lock(&analyzer_mutex);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not lock analyzer mutex\n");
+                log_e("Could not lock analyzer mutex");
             }
             else
             {
@@ -1074,7 +1064,7 @@ int main(int argc, char **argv)
                                             &shortterm, &integrated);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not get loudness\n");
+                    log_e("Could not get loudness");
                 }
                 else
                 {
@@ -1085,17 +1075,14 @@ int main(int argc, char **argv)
                     ret = ipc_send_message(&ipc_context, &ipc_message);
                     if (ret == 0)
                     {
-                        float uptime;
-                        uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                        //printf("[%.3f] IPC message sent\n", uptime);
+                        log_d("Loudness data IPC message sent");
                     }
                 }
 
                 ret = pthread_mutex_unlock(&analyzer_mutex);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not unlock analyzer mutex\n");
+                    log_e("Could not unlock analyzer mutex");
                 }
             }
 
@@ -1104,7 +1091,7 @@ int main(int argc, char **argv)
                 ret = pthread_mutex_lock(&loudness_log_mutex);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not lock loudness log mutex\n");
+                    log_e("Could not lock loudness log mutex");
                 }
                 else
                 {
@@ -1114,7 +1101,7 @@ int main(int argc, char **argv)
                                                 &integrated);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not get loudness\n");
+                        log_e("Could not get loudness");
                     }
                     else
                     {
@@ -1135,22 +1122,18 @@ int main(int argc, char **argv)
                                             integrated);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not write loudness log\n");
+                            log_e("Could not write loudness log");
                         }
                         else
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            //printf("[%.3f] Loudness log wrote\n", uptime);
+                            log_d("Loudness log wrote");
                         }
                     }
 
                     ret = pthread_mutex_unlock(&loudness_log_mutex);
                     if (ret != 0)
                     {
-                        fprintf(stderr,
-                                "Could not unlock loudness log mutex\n");
+                        log_e("Could not unlock loudness log mutex");
                     }
                 }
             }
@@ -1169,14 +1152,11 @@ int main(int argc, char **argv)
                                     received_fifo_buffer_size);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not send AV stream\n");
+                    log_e("Could not send AV stream");
                 }
                 else
                 {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    //printf("[%.3f] AV stream sent\n", uptime);
+                    log_d("AV stream sent");
                 }
             }
 
@@ -1186,14 +1166,11 @@ int main(int argc, char **argv)
                              av_record_fp);
                 if (ret != received_fifo_buffer_size)
                 {
-                    fprintf(stderr, "Could not write AV record\n");
+                    log_e("Could not write AV record");
                 }
                 else
                 {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    //printf("[%.3f] AV record wrote\n", uptime);
+                    log_d("AV record wrote");
                 }
             }
         }
@@ -1222,6 +1199,8 @@ int main(int argc, char **argv)
     fifo_free_buffer(fifo_buffer);
 
     fifo_uninit(&fifo_context);
+
+    log_close();
 
     return 0;
 }

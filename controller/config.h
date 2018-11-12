@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#define DEFAULT_LOG_OUTPUT              "syslog"
+#define DEFAULT_LOG_LEVEL               (LOG_LEVEL_INFO)
+
 #define IPC_SOCKET_COUNT                (5)
 
 #define LIRCD_SOCKET_COUNT              (5)

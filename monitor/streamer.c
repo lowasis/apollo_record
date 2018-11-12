@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "log.h"
 #include "streamer.h"
 
 
@@ -20,7 +21,7 @@ int streamer_init(char *ip, int port, int packet_size, StreamerContext *context)
     context->fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (context->fd == -1)
     {
-        fprintf(stderr, "Could not open socket\n");
+        log_e("Could not open socket");
 
         return -1;
     }
@@ -33,7 +34,7 @@ int streamer_init(char *ip, int port, int packet_size, StreamerContext *context)
     context->buffer = (char *)malloc(sizeof(char) * packet_size);
     if (!context->buffer)
     {
-        fprintf(stderr, "Could not allocate stream buffer\n");
+        log_e("Could not allocate stream buffer");
 
         close(context->fd);
 
@@ -92,15 +93,14 @@ int streamer_send(StreamerContext *context, char *data, int size)
                          sizeof(context->address));
             if (ret < 0)
             {
-                fprintf(stderr, "Could not send stream\n");
+                log_e("Could not send stream");
 
                 return -1;
             }
 
             if (ret != context->packet_size)
             {
-                fprintf(stderr, "send stream %d than %d\n", ret,
-                        context->packet_size);
+                log_w("send stream %d than %d", ret, context->packet_size);
             }
 
             context->buffer_index = 0;

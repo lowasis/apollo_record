@@ -7,6 +7,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/videodev2.h>
+#include "log.h"
 #include "video.h"
 
 
@@ -34,7 +35,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     context->fd = open(name, O_RDWR | O_NONBLOCK, 0);
     if (context->fd == -1)
     {
-        fprintf(stderr, "Could not open video\n");
+        log_e("Could not open video");
 
         return -1;
     }
@@ -43,7 +44,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_QUERYCAP, &capability);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not get video capabilities\n");
+        log_e("Could not get video capabilities");
 
         close(context->fd);
 
@@ -52,7 +53,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
 
     if (!(capability.capabilities & V4L2_CAP_VIDEO_CAPTURE))
     {
-        fprintf(stderr, "Could not support video capture\n");
+        log_e("Could not support video capture");
 
         close(context->fd);
 
@@ -61,7 +62,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
 
     if (!(capability.capabilities & V4L2_CAP_STREAMING))
     {
-        fprintf(stderr, "Could not support video streaming\n");
+        log_e("Could not support video streaming");
 
         close(context->fd);
 
@@ -72,7 +73,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_S_STD, &std_id);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set video standard\n");
+        log_e("Could not set video standard");
 
         close(context->fd);
 
@@ -83,7 +84,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_S_STD, &std_id);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set video standard\n");
+        log_e("Could not set video standard");
 
         close(context->fd);
 
@@ -100,7 +101,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_S_FMT, &format);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set video format\n");
+        log_e("Could not set video format");
 
         close(context->fd);
 
@@ -115,7 +116,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_REQBUFS, &request_buffers);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not request video buffer\n");
+        log_e("Could not request video buffer");
 
         close(context->fd);
 
@@ -126,7 +127,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
                                         request_buffers.count);
     if (!context->mmap)
     {
-        fprintf(stderr, "Could not allocate video mmap array\n");
+        log_e("Could not allocate video mmap array");
 
         close(context->fd);
 
@@ -143,7 +144,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
         ret = xioctl(context->fd, VIDIOC_QUERYBUF, &buffer);
         if (ret == -1)
         {
-            fprintf(stderr, "Could not get video buffer\n");
+            log_e("Could not get video buffer");
 
             free(context->mmap);
 
@@ -158,7 +159,7 @@ int video_init(char *name, int width, int height, VideoContext *context)
                                         buffer.m.offset);
         if (context->mmap[i].address == MAP_FAILED)
         {
-            fprintf(stderr, "Could not mmap video buffer\n");
+            log_e("Could not mmap video buffer");
 
             free(context->mmap);
             
@@ -202,7 +203,7 @@ int video_alloc_frame(VideoContext *context, char **frame)
     *frame = (char *)malloc(sizeof(char) * context->mmap[0].length);
     if (!*frame)
     {
-        fprintf(stderr, "Could not allocate video buffer\n");
+        log_e("Could not allocate video buffer");
 
         return -1;
     }
@@ -233,7 +234,7 @@ int video_receive_frame(VideoContext *context, char *frame, int *received_size)
     ret = select(context->fd + 1, &fds, NULL, NULL, &time);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not select video\n");
+        log_e("Could not select video");
 
         return -1;
     }
@@ -249,14 +250,14 @@ int video_receive_frame(VideoContext *context, char *frame, int *received_size)
     ret = xioctl(context->fd, VIDIOC_DQBUF, &buffer);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not dequeue video buffer\n");
+        log_e("Could not dequeue video buffer");
 
         return -1;
     }
 
     if (context->mmap_count <= buffer.index)
     {
-        fprintf(stderr, "Wrong video mmap array index\n");
+        log_e("Wrong video mmap array index");
 
         return -1;
     }
@@ -269,7 +270,7 @@ int video_receive_frame(VideoContext *context, char *frame, int *received_size)
     ret = xioctl(context->fd, VIDIOC_QBUF, &buffer);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not queue video buffer\n");
+        log_e("Could not queue video buffer");
 
         return -1;
     }
@@ -296,7 +297,7 @@ int video_start_capture(VideoContext *context)
         ret = xioctl(context->fd, VIDIOC_QBUF, &buffer);
         if (ret == -1)
         {
-            fprintf(stderr, "Could not queue video buffer\n");
+            log_e("Could not queue video buffer");
 
             return -1;
         }
@@ -307,7 +308,7 @@ int video_start_capture(VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_STREAMON, &buf_type);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not on video stream\n");
+        log_e("Could not on video stream");
 
         return -1;
     }
@@ -329,7 +330,7 @@ int video_stop_capture(VideoContext *context)
     ret = xioctl(context->fd, VIDIOC_STREAMOFF, &buf_type);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not off video stream\n");
+        log_e("Could not off video stream");
 
         return -1;
     }

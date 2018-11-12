@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "lirc_client.h"
+#include "log.h"
 #include "irremote.h"
 
 
@@ -43,7 +44,7 @@ int irremote_init(char *name, IrRemoteModel model, IrRemoteContext *context)
     context->fd = lirc_get_local_socket(name, 0);
     if (context->fd < 0)
     {
-        fprintf(stderr, "Could not get lirc local socket\n");
+        log_e("Could not get lirc local socket");
 
         return -1;
     }
@@ -60,7 +61,7 @@ int irremote_init(char *name, IrRemoteModel model, IrRemoteContext *context)
 
     if (!context->model_name)
     {
-        fprintf(stderr, "Could not find model name\n");
+        log_e("Could not find model name");
 
         return -1;
     }
@@ -100,7 +101,7 @@ int irremote_send_key(IrRemoteContext *context, IrRemoteKey key)
 
     if (!key_name)
     {
-        fprintf(stderr, "Could not find key name\n");
+        log_e("Could not find key name");
 
         return -1;
     }
@@ -108,7 +109,7 @@ int irremote_send_key(IrRemoteContext *context, IrRemoteKey key)
     ret = lirc_send_one(context->fd, context->model_name, key_name);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not send lirc key\n");
+        log_e("Could not send lirc key");
 
         return -1;
     }

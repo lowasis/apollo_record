@@ -9,6 +9,7 @@
 #include <sys/un.h>
 #include <python2.7/Python.h>
 #include <libxml/xmlreader.h>
+#include "log.h"
 #include "epg2xml.h"
 #include "epg_channel_table_skb.h"
 #include "epg_channel_table_kt.h"
@@ -84,7 +85,7 @@ static void *request_data_thread(void *arg)
     ret = pthread_mutex_lock(&libpython_mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not lock mutex\n");
+        log_e("Could not lock mutex");
 
         return NULL;
     }
@@ -103,14 +104,14 @@ static void *request_data_thread(void *arg)
     ret = PyRun_SimpleString(___external_epg2xml_epg2xml_py);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not run python simple string\n");
+        log_e("Could not run python simple string");
 
         Py_Finalize();
 
         ret = pthread_mutex_unlock(&libpython_mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not unlock mutex\n");
+            log_e("Could not unlock mutex");
 
             return NULL;
         }
@@ -128,7 +129,7 @@ static void *request_data_thread(void *arg)
     ret = pthread_mutex_unlock(&libpython_mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not unlock mutex\n");
+        log_e("Could not unlock mutex");
 
         return NULL;
     }
@@ -149,7 +150,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
     reader = xmlReaderForMemory(buffer, size, "", XML_ENCODING, 0);
     if (!reader)
     {
-        fprintf(stderr, "Could not get xml reader\n");
+        log_e("Could not get xml reader");
 
         xmlCleanupParser();
 
@@ -170,7 +171,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         ret = xmlTextReaderRead(reader);
         if (ret != 1)
         {
-            fprintf(stderr, "Could not read xml\n");
+            log_e("Could not read xml");
 
             xmlFreeTextReader(reader);
 
@@ -183,7 +184,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         xmlFreeTextReader(reader);
 
@@ -208,7 +209,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
     ret = xmlTextReaderRead(reader);
     if (ret != 1)
     {
-        fprintf(stderr, "Could not read xml\n");
+        log_e("Could not read xml");
 
         xmlFreeTextReader(reader);
 
@@ -236,7 +237,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
                     str = xmlTextReaderName(reader);
                     if (!str)
                     {
-                        fprintf(stderr, "Could not read xml element name\n");
+                        log_e("Could not read xml element name");
 
                         if (*data)
                         {
@@ -269,7 +270,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     if (*data)
                     {
@@ -289,7 +290,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
             str = xmlTextReaderName(reader);
             if (!str)
             {
-                fprintf(stderr, "Could not read xml element name\n");
+                log_e("Could not read xml element name");
 
                 if (*data)
                 {
@@ -317,7 +318,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 if (*data)
                 {
@@ -337,7 +338,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         *data = (EpgData *)realloc(*data, sizeof(EpgData) * (*count + 1));
         if (!*data)
         {
-            fprintf(stderr, "Could not reallocate EPG data buffer\n");
+            log_e("Could not reallocate EPG data buffer");
 
             if (*data)
             {
@@ -360,7 +361,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             if (*data)
             {
@@ -385,7 +386,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             if (*data)
             {
@@ -406,7 +407,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         ret = xmlTextReaderRead(reader);
         if (ret != 1)
         {
-            fprintf(stderr, "Could not read xml\n");
+            log_e("Could not read xml");
 
             if (*data)
             {
@@ -435,7 +436,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     if (*data)
                     {
@@ -455,7 +456,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
             str = xmlTextReaderName(reader);
             if (!str)
             {
-                fprintf(stderr, "Could not read xml element name\n");
+                log_e("Could not read xml element name");
 
                 if (*data)
                 {
@@ -483,7 +484,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 if (*data)
                 {
@@ -503,7 +504,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         ret = xmlTextReaderRead(reader);
         if (ret != 1)
         {
-            fprintf(stderr, "Could not read xml\n");
+            log_e("Could not read xml");
 
             if (*data)
             {
@@ -530,7 +531,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 if (*data)
                 {
@@ -554,7 +555,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         }
         else
         {
-            fprintf(stderr, "Could not find xml value\n");
+            log_e("Could not find xml value");
 
             if (*data)
             {
@@ -575,7 +576,7 @@ static int parse_epg_xml(char *buffer, int size, EpgData **data, int *count)
         ret = xmlTextReaderRead(reader);
         if (ret != 1)
         {
-            fprintf(stderr, "Could not read xml\n");
+            log_e("Could not read xml");
 
             if (*data)
             {
@@ -615,7 +616,7 @@ int epg_init(char *name, EpgBroadcastServiceOperator oper, EpgContext *context)
     context->name = (char *)malloc(strlen(name) + 1);
     if (!context->name)
     {
-        fprintf(stderr, "Could not allocate EPG result file name buffer\n");
+        log_e("Could not allocate EPG result file name buffer");
 
         return -1;
     }
@@ -625,7 +626,7 @@ int epg_init(char *name, EpgBroadcastServiceOperator oper, EpgContext *context)
     if (oper < EPG_BROADCAST_SERVICE_OPERATOR_MIN ||
         EPG_BROADCAST_SERVICE_OPERATOR_MAX < oper)
     {
-        fprintf(stderr, "Could not find broadcast service operator\n");
+        log_e("Could not find broadcast service operator");
 
         free(context->name);
 
@@ -665,8 +666,7 @@ int epg_request_data(EpgContext *context, int channel,
     arg = (RequestDataThreadArg *)malloc(sizeof(RequestDataThreadArg));
     if (!arg)
     {
-        fprintf(stderr,
-                "Could not allocate EPG request data thread argument buffer\n");
+        log_e("Could not allocate EPG request data thread argument buffer");
 
         return -1;
     }
@@ -680,7 +680,7 @@ int epg_request_data(EpgContext *context, int channel,
     ret = pthread_create(&thread, NULL, request_data_thread, (void *)arg);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not create EPG request data thread\n");
+        log_e("Could not create EPG request data thread");
 
         return -1;
     }
@@ -701,7 +701,7 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     fp = fopen(context->name, "r");
     if (!fp)
     {
-        fprintf(stderr, "Could not open EPG result file\n");
+        log_e("Could not open EPG result file");
 
         return -1;
     }
@@ -709,7 +709,7 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     ret = fseek(fp, 0, SEEK_END);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not seek EPG result file to end\n");
+        log_e("Could not seek EPG result file to end");
 
         fclose(fp);
 
@@ -723,7 +723,7 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     buffer = (char *)malloc(size);
     if (!buffer)
     {
-        fprintf(stderr, "Could not allocate EPG receive buffer\n");
+        log_e("Could not allocate EPG receive buffer");
 
         fclose(fp);
 
@@ -733,7 +733,7 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     ret = fseek(fp, 0, 0);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not seek EPG result file to start\n");
+        log_e("Could not seek EPG result file to start");
 
         free(buffer);
 
@@ -745,9 +745,8 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     ret = fread(buffer, 1, size, fp);
     if (ret != size)
     {
-        fprintf(stderr,
-                "Could not read EPG result file entirely (%d of %d bytes)\n",
-                ret, size);
+        log_e("Could not read EPG result file entirely (%d of %d bytes)", ret,
+              size);
 
         free(buffer);
 
@@ -761,7 +760,7 @@ int epg_receive_data(EpgContext *context, EpgData **data, int *count)
     ret = parse_epg_xml(buffer, size, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not parse EPG xml\n");
+        log_e("Could not parse EPG xml");
 
         free(buffer);
 
@@ -794,7 +793,7 @@ int epg_get_channel_data(EpgContext *context, EpgChannelData **data, int *count)
 
     if (!table)
     {
-        fprintf(stderr, "Could not find broadcast service operator\n");
+        log_e("Could not find broadcast service operator");
         return -1;
     }
 
@@ -805,7 +804,7 @@ int epg_get_channel_data(EpgContext *context, EpgChannelData **data, int *count)
     *data = (EpgChannelData *)malloc(sizeof(EpgChannelData) * *count);
     if (!*data)
     {
-        fprintf(stderr, "Could not allocate EPG channel data buffer\n");
+        log_e("Could not allocate EPG channel data buffer");
 
         return -1;
     }
@@ -840,7 +839,7 @@ int epg_get_channel_name(EpgContext *context, int channel, char **name)
 
     if (!table)
     {
-        fprintf(stderr, "Could not find broadcast service operator\n");
+        log_e("Could not find broadcast service operator");
         return -1;
     }
 
@@ -856,7 +855,7 @@ int epg_get_channel_name(EpgContext *context, int channel, char **name)
 
     if (!*name)
     {
-        fprintf(stderr, "Could not find channel name\n");
+        log_e("Could not find channel name");
         return -1;
     }
 

@@ -21,6 +21,7 @@
 #include "database.h"
 #include "messenger.h"
 #include "epg.h"
+#include "log.h"
 
 
 typedef struct Loudness {
@@ -124,19 +125,24 @@ static void print_usage(char *name)
            "-L | --log path           Loudness log path\n"
            "-R | --record path        AV record path\n"
            "-E | --epg path           EPG XML path\n"
-           "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT);
+           "-o | --logout name        Log output (syslog, stdout, def : %s)\n"
+           "-d | --loglvl number      Log level (%d ~ %d, def : %d)\n"
+           "", name, IPC_SOCKET_COUNT, LIRCD_SOCKET_COUNT, DEFAULT_LOG_OUTPUT,
+           LOG_LEVEL_MIN, LOG_LEVEL_MAX, DEFAULT_LOG_LEVEL);
 }
 
 static int get_option(int argc, char **argv, char **ipc_socket_name,
                       int *ipc_socket_name_count, char **lircd_socket_name,
                       int *lircd_socket_name_count, char **sqlite_database_name,
                       int *messenger_port_number, char **loudness_log_path,
-                      char **av_record_path, char **epg_xml_path)
+                      char **av_record_path, char **epg_xml_path,
+                      char **log_output, LogLevel *log_level)
 {
     if (!argv || !ipc_socket_name || !ipc_socket_name_count ||
         !lircd_socket_name || !lircd_socket_name_count ||
         !sqlite_database_name || !messenger_port_number ||
-        !loudness_log_path || !av_record_path || !epg_xml_path)
+        !loudness_log_path || !av_record_path || !epg_xml_path || !log_output ||
+        !log_level)
     {
         return -1;
     }
@@ -159,7 +165,7 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
 
     while (1)
     {
-        const char short_options[] = "hi:l:s:m:L:R:E:";
+        const char short_options[] = "hi:l:s:m:L:R:E:o:d:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"ipc", required_argument, NULL, 'i'},
@@ -169,6 +175,8 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
             {"log", required_argument, NULL, 'L'},
             {"record", required_argument, NULL, 'R'},
             {"epg", required_argument, NULL, 'E'},
+            {"logout", required_argument, NULL, 'o'},
+            {"loglvl", required_argument, NULL, 'd'},
             {0, 0, 0, 0}
         };
         int index;
@@ -221,6 +229,14 @@ static int get_option(int argc, char **argv, char **ipc_socket_name,
                 *epg_xml_path = optarg;
                 break;
 
+            case 'o':
+                *log_output = optarg;
+                break;
+
+            case 'd':
+                *log_level = strtol(optarg, NULL, 10);
+                break;
+
             default:
                 return -1;
         }
@@ -259,7 +275,7 @@ static int get_my_ip(char *buffer)
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd == -1)
     {
-        fprintf(stderr, "Could not open socket\n");
+        log_e("Could not open socket");
 
         return -1;
     }
@@ -270,7 +286,7 @@ static int get_my_ip(char *buffer)
     ifc.ifc_buf = malloc(ifc.ifc_len);
     if (!ifc.ifc_buf)
     {
-        fprintf(stderr, "Could not allocate ifconf buffer\n");
+        log_e("Could not allocate ifconf buffer");
 
         close(fd);
 
@@ -280,7 +296,7 @@ static int get_my_ip(char *buffer)
     ret = ioctl(fd, SIOCGIFCONF, (char *)&ifc);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not ioctl ifconf\n");
+        log_e("Could not ioctl ifconf");
 
         free(ifc.ifc_buf);
 
@@ -309,7 +325,7 @@ static int get_my_ip(char *buffer)
 
     if (strlen(buffer) == 0)
     {
-        fprintf(stderr, "Could not find ip\n");
+        log_e("Could not find ip");
 
         free(ifc.ifc_buf);
 
@@ -396,7 +412,7 @@ static int get_current_epg(pthread_mutex_t *mutex, Epg *epg, int epg_count,
     ret = pthread_mutex_lock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not lock mutex\n");
+        log_e("Could not lock mutex");
 
         return -1;
     }
@@ -406,7 +422,7 @@ static int get_current_epg(pthread_mutex_t *mutex, Epg *epg, int epg_count,
         ret = pthread_mutex_unlock(mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not unlock mutex\n");
+            log_e("Could not unlock mutex");
 
             return -1;
         }
@@ -431,7 +447,7 @@ static int get_current_epg(pthread_mutex_t *mutex, Epg *epg, int epg_count,
         ret = pthread_mutex_unlock(mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not unlock mutex\n");
+            log_e("Could not unlock mutex");
 
             return -1;
         }
@@ -442,7 +458,7 @@ static int get_current_epg(pthread_mutex_t *mutex, Epg *epg, int epg_count,
     ret = pthread_mutex_unlock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not unlock mutex\n");
+        log_e("Could not unlock mutex");
 
         return -1;
     }
@@ -460,7 +476,7 @@ static int convert_localtime_str_to_unixtime(char *str, time_t *unixtime)
     struct tm t;
     if (!strptime(str, "%Y-%m-%d %H:%M:%S", &t))
     {
-        fprintf(stderr, "Could not strptime\n");
+        log_e("Could not strptime");
 
         return -1;
     }
@@ -486,7 +502,7 @@ static int convert_unixtime_to_localtime_str(time_t unixtime, char *str,
     ret = strftime(str, size, "%Y-%m-%d %H:%M:%S", t);
     if (ret != strlen("YYYY-MM-DD HH:MM:SS"))
     {
-        fprintf(stderr, "Could not strftime\n");
+        log_e("Could not strftime");
 
         return -1;
     }
@@ -580,7 +596,7 @@ static void *channel_change_thread(void *arg)
         ret = irremote_send_key(context, key);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not send irremote key\n");
+            log_e("Could not send irremote key");
 
             return NULL;
         }
@@ -591,7 +607,7 @@ static void *channel_change_thread(void *arg)
     ret = irremote_send_key(context, IRREMOTE_KEY_OK);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send irremote key\n");
+        log_e("Could not send irremote key");
 
         return NULL;
     }
@@ -607,7 +623,7 @@ static int channel_change(IrRemoteContext *context, int index, int channel)
     arg = (ChannelChangeThreadArg *)malloc(sizeof(ChannelChangeThreadArg));
     if (!arg)
     {
-        fprintf(stderr, "Could not allocate channel change argument buffer\n");
+        log_e("Could not allocate channel change argument buffer");
 
         return -1;
     }
@@ -619,7 +635,7 @@ static int channel_change(IrRemoteContext *context, int index, int channel)
     ret = pthread_create(&thread, NULL, channel_change_thread, (void *)arg);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not create channel change thread\n");
+        log_e("Could not create channel change thread");
 
         return -1;
     }
@@ -637,7 +653,7 @@ static int loudness_reset(IpcContext *context, int index)
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -667,7 +683,7 @@ static int loudness_log_start(IpcContext *context, int index, int channel,
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -691,7 +707,7 @@ static int loudness_log_end(IpcContext *context, int index)
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -721,7 +737,7 @@ static int av_record_start(IpcContext *context, int index, int channel,
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -750,7 +766,7 @@ static int av_record_end(IpcContext *context, int index)
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -768,7 +784,7 @@ static int av_stream_start(IpcContext *context, int index, char *ip, int port)
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -786,7 +802,7 @@ static int av_stream_end(IpcContext *context, int index)
     ret = ipc_send_message(&context[index], &ipc_message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send ipc message\n");
+        log_e("Could not send ipc message");
 
         return -1;
     }
@@ -802,7 +818,7 @@ static int save_status_data(DatabaseContext *context, Status *status, int count)
     data = (DatabaseStatusData *)malloc(sizeof(DatabaseStatusData) * count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database status data buffer\n");
+        log_e("Could not allocate database status data buffer");
 
         return -1;
     }
@@ -822,7 +838,7 @@ static int save_status_data(DatabaseContext *context, Status *status, int count)
     ret = database_set_status_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database status data\n");
+        log_e("Could not set database status data");
 
         free(data);
 
@@ -842,7 +858,7 @@ static int load_status_data(DatabaseContext *context, Status *status, int count)
     ret = database_count_status_data(context, &cnt);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not count database status data\n");
+        log_e("Could not count database status data");
 
         return -1;
     }
@@ -851,7 +867,7 @@ static int load_status_data(DatabaseContext *context, Status *status, int count)
     data = (DatabaseStatusData *)malloc(sizeof(DatabaseStatusData) * cnt);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database status data buffer\n");
+        log_e("Could not allocate database status data buffer");
 
         return -1;
     }
@@ -859,7 +875,7 @@ static int load_status_data(DatabaseContext *context, Status *status, int count)
     ret = database_get_status_data(context, data, cnt);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database status data\n");
+        log_e("Could not get database status data");
 
         free(data);
 
@@ -905,7 +921,7 @@ static int save_schedule_data(DatabaseContext *context, Schedule *schedule)
     data = (DatabaseScheduleData *)malloc(sizeof(DatabaseScheduleData) * count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database schedule data buffer\n");
+        log_e("Could not allocate database schedule data buffer");
 
         return -1;
     }
@@ -921,7 +937,7 @@ static int save_schedule_data(DatabaseContext *context, Schedule *schedule)
     ret = database_set_schedule_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database schedule data\n");
+        log_e("Could not set database schedule data");
 
         free(data);
 
@@ -941,7 +957,7 @@ static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
     ret = database_count_schedule_data(context, &count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not count database schedule data\n");
+        log_e("Could not count database schedule data");
 
         return -1;
     }
@@ -950,7 +966,7 @@ static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
     data = (DatabaseScheduleData *)malloc(sizeof(DatabaseScheduleData) * count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database schedule data buffer\n");
+        log_e("Could not allocate database schedule data buffer");
 
         return -1;
     }
@@ -958,7 +974,7 @@ static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
     ret = database_get_schedule_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database schedule data\n");
+        log_e("Could not get database schedule data");
 
         free(data);
 
@@ -968,7 +984,7 @@ static int load_schedule_data(DatabaseContext *context, Schedule **schedule)
     Schedule *new_schedule = (Schedule *)malloc(sizeof(Schedule) * (count + 1));
     if (!new_schedule)
     {
-        fprintf(stderr, "Could not allocate new schedule buffer\n");
+        log_e("Could not allocate new schedule buffer");
 
         free(data);
 
@@ -1007,8 +1023,7 @@ static int save_playback_list_data(DatabaseContext *context,
                                               count);
     if (!data)
     {
-        fprintf(stderr,
-                "Could not allocate database playback list data buffer\n");
+        log_e("Could not allocate database playback list data buffer");
 
         return -1;
     }
@@ -1034,7 +1049,7 @@ static int save_playback_list_data(DatabaseContext *context,
     ret = database_set_playback_list_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database playback list data\n");
+        log_e("Could not set database playback list data");
 
         free(data);
 
@@ -1054,7 +1069,7 @@ static int load_playback_list_data(DatabaseContext *context,
     ret = database_count_playback_list_data(context, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not count database playback list data\n");
+        log_e("Could not count database playback list data");
 
         return -1;
     }
@@ -1064,8 +1079,7 @@ static int load_playback_list_data(DatabaseContext *context,
                                               *count);
     if (!data)
     {
-        fprintf(stderr,
-                "Could not allocate database playback list data buffer\n");
+        log_e("Could not allocate database playback list data buffer");
 
         return -1;
     }
@@ -1073,7 +1087,7 @@ static int load_playback_list_data(DatabaseContext *context,
     ret = database_get_playback_list_data(context, data, *count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database playback list data\n");
+        log_e("Could not get database playback list data");
 
         free(data);
 
@@ -1084,7 +1098,7 @@ static int load_playback_list_data(DatabaseContext *context,
                                                     *count);
     if (!new_list)
     {
-        fprintf(stderr, "Could not allocate new playback list buffer\n");
+        log_e("Could not allocate new playback list buffer");
 
         free(data);
 
@@ -1136,7 +1150,7 @@ static int update_playback_list_end_data(DatabaseContext *context, char *name,
     ret = database_update_playback_list_end_data(context, name, str);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not update database playback list end data\n");
+        log_e("Could not update database playback list end data");
 
         return -1;
     }
@@ -1169,8 +1183,7 @@ static int update_playback_list_program_data(DatabaseContext *context,
                                                      program_name, start, end);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not update "
-                        "database playback list program data\n");
+        log_e("Could not update database playback list program data");
 
         return -1;
     }
@@ -1186,8 +1199,7 @@ static int update_playback_list_loudness_data(DatabaseContext *context,
     ret = database_update_playback_list_loudness_data(context, name, loudness);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not update "
-                        "database playback list loudness data\n");
+        log_e("Could not update database playback list loudness data");
 
         return -1;
     }
@@ -1204,7 +1216,7 @@ static int save_log_list_data(DatabaseContext *context, LogList *list,
     data = (DatabaseLogListData *)malloc(sizeof(DatabaseLogListData) * count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database log list data buffer\n");
+        log_e("Could not allocate database log list data buffer");
 
         return -1;
     }
@@ -1222,7 +1234,7 @@ static int save_log_list_data(DatabaseContext *context, LogList *list,
     ret = database_set_log_list_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database log list data\n");
+        log_e("Could not set database log list data");
 
         free(data);
 
@@ -1242,7 +1254,7 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     ret = database_count_log_list_data(context, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not count database log list data\n");
+        log_e("Could not count database log list data");
 
         return -1;
     }
@@ -1251,7 +1263,7 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     data = (DatabaseLogListData *)malloc(sizeof(DatabaseLogListData) * *count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate database log list data buffer\n");
+        log_e("Could not allocate database log list data buffer");
 
         return -1;
     }
@@ -1259,7 +1271,7 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     ret = database_get_log_list_data(context, data, *count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database log list data\n");
+        log_e("Could not get database log list data");
 
         free(data);
 
@@ -1269,7 +1281,7 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
     LogList *new_list = (LogList *)malloc(sizeof(LogList) * *count);
     if (!new_list)
     {
-        fprintf(stderr, "Could not allocate new log list buffer\n");
+        log_e("Could not allocate new log list buffer");
 
         free(data);
 
@@ -1313,7 +1325,7 @@ static int update_log_list_end_data(DatabaseContext *context, char *name,
     ret = database_update_log_list_end_data(context, name, str);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not update database log list end data\n");
+        log_e("Could not update database log list end data");
 
         return -1;
     }
@@ -1331,8 +1343,7 @@ static int save_user_loudness_data(DatabaseContext *context,
                                               count);
     if (!data)
     {
-        fprintf(stderr,
-                "Could not allocate database user loudness data buffer\n");
+        log_e("Could not allocate database user loudness data buffer");
 
         return -1;
     }
@@ -1347,7 +1358,7 @@ static int save_user_loudness_data(DatabaseContext *context,
     ret = database_set_user_loudness_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database user loudness data\n");
+        log_e("Could not set database user loudness data");
 
         free(data);
 
@@ -1359,8 +1370,7 @@ static int save_user_loudness_data(DatabaseContext *context,
                                               sizeof(DatabasePlaybackListData));
     if (!list_data)
     {
-        fprintf(stderr,
-                "Could not allocate database playback list data buffer\n");
+        log_e("Could not allocate database playback list data buffer");
 
         free(data);
 
@@ -1375,7 +1385,7 @@ static int save_user_loudness_data(DatabaseContext *context,
                                                   &list_data[j]);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not get database playback list data one\n");
+            log_e("Could not get database playback list data one");
 
             continue;
         }
@@ -1388,7 +1398,7 @@ static int save_user_loudness_data(DatabaseContext *context,
     ret = database_set_playback_list_data(context, list_data, j);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database playback list data\n");
+        log_e("Could not set database playback list data");
 
         free(list_data);
 
@@ -1413,7 +1423,7 @@ static int load_user_loudness_data(DatabaseContext *context, char **name,
     ret = database_count_user_loudness_data(context, name, count, loaded_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not count database user loudness data\n");
+        log_e("Could not count database user loudness data");
 
         return -1;
     }
@@ -1423,8 +1433,7 @@ static int load_user_loudness_data(DatabaseContext *context, char **name,
                                               *loaded_count);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate "
-                        "database user loudness data buffer\n");
+        log_e("Could not allocate database user loudness data buffer");
 
         return -1;
     }
@@ -1432,7 +1441,7 @@ static int load_user_loudness_data(DatabaseContext *context, char **name,
     ret = database_get_user_loudness_data(context, name, data, *loaded_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database user loudness data\n");
+        log_e("Could not get database user loudness data");
 
         free(data);
 
@@ -1443,7 +1452,7 @@ static int load_user_loudness_data(DatabaseContext *context, char **name,
                                                         *loaded_count);
     if (!new_loudness)
     {
-        fprintf(stderr, "Could not allocate new user loudness buffer\n");
+        log_e("Could not allocate new user loudness buffer");
 
         free(data);
 
@@ -1481,8 +1490,7 @@ static int save_user_loudness_section_data(DatabaseContext *context,
     data = (DatabaseUserLoudnessSectionData *)malloc(size);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate "
-                        "database user loudness section data buffer\n");
+        log_e("Could not allocate database user loudness section data buffer");
 
         return -1;
     }
@@ -1499,7 +1507,7 @@ static int save_user_loudness_section_data(DatabaseContext *context,
     ret = database_set_user_loudness_section_data(context, data, count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set database user loudness section data\n");
+        log_e("Could not set database user loudness section data");
 
         free(data);
 
@@ -1521,8 +1529,7 @@ static int load_user_loudness_section_data(DatabaseContext *context,
     ret = database_count_user_loudness_section_data(context, name, count);
     if (ret != 0)
     {
-        fprintf(stderr,
-                "Could not count database user loudness section data\n");
+        log_e("Could not count database user loudness section data");
 
         return -1;
     }
@@ -1532,8 +1539,7 @@ static int load_user_loudness_section_data(DatabaseContext *context,
     data = (DatabaseUserLoudnessSectionData *)malloc(size);
     if (!data)
     {
-        fprintf(stderr, "Could not allocate "
-                        "database user loudness section data buffer\n");
+        log_e("Could not allocate database user loudness section data buffer");
 
         return -1;
     }
@@ -1541,7 +1547,7 @@ static int load_user_loudness_section_data(DatabaseContext *context,
     ret = database_get_user_loudness_section_data(context, name, data, *count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get database user loudness section data\n");
+        log_e("Could not get database user loudness section data");
 
         free(data);
 
@@ -1552,8 +1558,7 @@ static int load_user_loudness_section_data(DatabaseContext *context,
     UserLoudnessSection *new_section = (UserLoudnessSection *)malloc(size);
     if (!new_section)
     {
-        fprintf(stderr,
-                "Could not allocate new user loudness section buffer\n");
+        log_e("Could not allocate new user loudness section buffer");
 
         free(data);
 
@@ -1595,7 +1600,7 @@ static int send_ack_message(MessengerContext *context, char *ip, int number)
     ret = messenger_send_message(context, &message);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not send messenger ack message\n");
+        log_e("Could not send messenger ack message");
 
         return -1;
     }
@@ -1611,7 +1616,7 @@ static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
     ret = pthread_mutex_lock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not lock mutex\n");
+        log_e("Could not lock mutex");
 
         return -1;
     }
@@ -1619,12 +1624,12 @@ static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
     *epg = (Epg *)realloc(*epg, sizeof(Epg) * (*epg_count + data_count));
     if (!*epg)
     {
-        fprintf(stderr, "Could not reallocate EPG buffer\n");
+        log_e("Could not reallocate EPG buffer");
 
         ret = pthread_mutex_unlock(mutex);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not unlock mutex\n");
+            log_e("Could not unlock mutex");
 
             return -1;
         }
@@ -1643,7 +1648,7 @@ static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
         struct tm t;
         if (!strptime(data[i].start, "%Y%m%d%H%M%S", &t))
         {
-            fprintf(stderr, "Could not strptime\n");
+            log_e("Could not strptime");
 
             continue;
         }
@@ -1651,7 +1656,7 @@ static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
 
         if (!strptime(data[i].stop, "%Y%m%d%H%M%S", &t))
         {
-            fprintf(stderr, "Could not strptime\n");
+            log_e("Could not strptime");
 
             continue;
         }
@@ -1665,7 +1670,7 @@ static int epg_insert(pthread_mutex_t *mutex, int index, int channel,
     ret = pthread_mutex_unlock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not unlock mutex\n");
+        log_e("Could not unlock mutex");
 
         return -1;
     }
@@ -1681,7 +1686,7 @@ static int epg_delete(pthread_mutex_t *mutex, int index, Epg **epg,
     ret = pthread_mutex_lock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not lock mutex\n");
+        log_e("Could not lock mutex");
 
         return -1;
     }
@@ -1702,12 +1707,12 @@ static int epg_delete(pthread_mutex_t *mutex, int index, Epg **epg,
             Epg *new_epg = (Epg *)malloc(sizeof(Epg) * count);
             if (!new_epg)
             {
-                fprintf(stderr, "Could not allocate new EPG buffer\n");
+                log_e("Could not allocate new EPG buffer");
 
                 ret = pthread_mutex_unlock(mutex);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not unlock mutex\n");
+                    log_e("Could not unlock mutex");
 
                     return -1;
                 }
@@ -1734,7 +1739,7 @@ static int epg_delete(pthread_mutex_t *mutex, int index, Epg **epg,
     ret = pthread_mutex_unlock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not unlock mutex\n");
+        log_e("Could not unlock mutex");
 
         return -1;
     }
@@ -1758,7 +1763,7 @@ static int epg_request_callback(EpgContext *context, int channel, void *arg)
     ret = epg_receive_data(context, &data, &count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not receive EPG data\n");
+        log_e("Could not receive EPG data");
 
         return -1;
     }
@@ -1766,7 +1771,7 @@ static int epg_request_callback(EpgContext *context, int channel, void *arg)
     ret = epg_delete(mutex, index, epg, epg_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not delete EPG\n");
+        log_e("Could not delete EPG");
 
         return -1;
     }
@@ -1774,12 +1779,12 @@ static int epg_request_callback(EpgContext *context, int channel, void *arg)
     ret = epg_insert(mutex, index, channel, data, count, epg, epg_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not insert EPG\n");
+        log_e("Could not insert EPG");
 
         return -1;
     }
 
-    printf("data_count = %d, epg_count = %d\n", count, *epg_count);
+    log_i("data_count = %d, epg_count = %d", count, *epg_count);
 
     free(data);
 
@@ -1795,7 +1800,7 @@ static int epg_request(EpgContext *context, pthread_mutex_t *mutex, int index,
     arg = (EpgRequestCallbackArg *)malloc(sizeof(EpgRequestCallbackArg));
     if (!arg)
     {
-        fprintf(stderr, "Could not allocate EPG request callback arg buffer\n");
+        log_e("Could not allocate EPG request callback arg buffer");
 
         return -1;
     }
@@ -1809,7 +1814,7 @@ static int epg_request(EpgContext *context, pthread_mutex_t *mutex, int index,
                            arg);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not request EPG data\n");
+        log_e("Could not request EPG data");
 
         free(arg);
 
@@ -1831,7 +1836,7 @@ static void *command_func_channel_change(void *context, int index, void **arg)
     number = strtol(channel, &p, 10);
     if ((p - channel) != strlen(channel))
     {
-        printf("Wrong channel number\n");
+        log_i("Wrong channel number");
 
         return NULL;
     }
@@ -1839,7 +1844,7 @@ static void *command_func_channel_change(void *context, int index, void **arg)
     ret = channel_change(irremote_context, index, number);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not change channel\n");
+        log_e("Could not change channel");
 
         return NULL;
     }
@@ -1849,10 +1854,9 @@ static void *command_func_loudness_print(void *context, int index, void **arg)
 {
     Loudness *loudness = (Loudness *)context;
 
-    printf("Reference %2.1f, Momentary %2.1f, Shortterm %2.1f, "
-           "Integrated %2.1f\n", loudness[index].reference,
-           loudness[index].momentary, loudness[index].shortterm,
-           loudness[index].integrated);
+    log_i("Reference %2.1f, Momentary %2.1f, Shortterm %2.1f, Integrated %2.1f",
+           loudness[index].reference, loudness[index].momentary,
+           loudness[index].shortterm, loudness[index].integrated);
 }
 
 static void *command_func_schedule_add(void *context, int index, void **arg)
@@ -1865,7 +1869,7 @@ static void *command_func_schedule_add(void *context, int index, void **arg)
     ret = convert_localtime_str_to_unixtime(start, &start_number);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not convert local time string to unixtime\n");
+        log_e("Could not convert local time string to unixtime");
 
         return NULL;
     }
@@ -1876,7 +1880,7 @@ static void *command_func_schedule_add(void *context, int index, void **arg)
     ret = convert_localtime_str_to_unixtime(end, &end_number);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not convert local time string to unixtime\n");
+        log_e("Could not convert local time string to unixtime");
 
         return NULL;
     }
@@ -1887,7 +1891,7 @@ static void *command_func_schedule_add(void *context, int index, void **arg)
     channel_number = strtol(channel, &p, 10);
     if ((p - channel) != strlen(channel))
     {
-        printf("Wrong channel number\n");
+        log_i("Wrong channel number");
 
         return NULL;
     }
@@ -1905,7 +1909,7 @@ static void *command_func_schedule_add(void *context, int index, void **arg)
     Schedule *new_schedule = (Schedule *)malloc(sizeof(Schedule) * (count + 2));
     if (!new_schedule)
     {
-        fprintf(stderr, "Could not allocate new schedule buffer\n");
+        log_e("Could not allocate new schedule buffer");
 
         return NULL;
     }
@@ -1940,7 +1944,7 @@ static void *command_func_schedule_del(void *context, int index, void **arg)
     ret = convert_localtime_str_to_unixtime(start, &start_number);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not convert local time string to unixtime\n");
+        log_e("Could not convert local time string to unixtime");
 
         return NULL;
     }
@@ -1951,7 +1955,7 @@ static void *command_func_schedule_del(void *context, int index, void **arg)
     ret = convert_localtime_str_to_unixtime(end, &end_number);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not convert local time string to unixtime\n");
+        log_e("Could not convert local time string to unixtime");
 
         return NULL;
     }
@@ -1962,7 +1966,7 @@ static void *command_func_schedule_del(void *context, int index, void **arg)
     channel_number = strtol(channel, &p, 10);
     if ((p - channel) != strlen(channel))
     {
-        printf("Wrong channel number\n");
+        log_i("Wrong channel number");
 
         return NULL;
     }
@@ -2029,7 +2033,7 @@ static void *command_func_schedule_print(void *context, int index, void **arg)
                 strncpy(end, "1970-01-01 00:00:00", sizeof(end));
             }
 
-            printf("Index %d, Start %ld(%s), End %ld(%s), Channel %d\n",
+            log_i("Index %d, Start %ld(%s), End %ld(%s), Channel %d",
                    schedule[i].index, schedule[i].start, start, schedule[i].end,
                    end, schedule[i].channel);
         }
@@ -2046,15 +2050,15 @@ static int command_func_epg_request_callback(EpgContext *context, int channel,
     ret = epg_receive_data(context, &data, &count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not receive EPG data\n");
+        log_e("Could not receive EPG data");
 
         return -1;
     }
 
-    printf("Channel %d\n", channel);
+    log_i("Channel %d", channel);
     for (int i = 0; i < count; i++)
     {
-        printf("%s, %s, %s\n", data[i].title, data[i].start, data[i].stop);
+        log_i("%s, %s, %s", data[i].title, data[i].start, data[i].stop);
     }
 
     free(data);
@@ -2074,7 +2078,7 @@ static void *command_func_epg_request(void *context, int index, void **arg)
     number = strtol(channel, &p, 10);
     if ((p - channel) != strlen(channel))
     {
-        printf("Wrong channel number\n");
+        log_i("Wrong channel number");
 
         return NULL;
     }
@@ -2083,7 +2087,7 @@ static void *command_func_epg_request(void *context, int index, void **arg)
                            command_func_epg_request_callback, NULL);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not request EPG data\n");
+        log_e("Could not request EPG data");
 
         return NULL;
     }
@@ -2100,17 +2104,17 @@ static void *command_func_epg_print(void *context, int index, void **arg)
     int epg_count = ((CommandFuncEpgPrintContext *)context)->epg_count;
     int index_count = ((CommandFuncEpgPrintContext *)context)->index_count;
 
-    printf("epg_count = %d\n", epg_count);
+    log_i("epg_count = %d", epg_count);
 
     ret = pthread_mutex_lock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not lock mutex\n");
+        log_e("Could not lock mutex");
 
         return NULL;
     }
 
-    printf("Total program :\n");
+    log_i("Total program :");
     if (epg)
     {
         for (int i = 0; i < epg_count; i++)
@@ -2131,13 +2135,13 @@ static void *command_func_epg_print(void *context, int index, void **arg)
                 strncpy(end, "1970-01-01 00:00:00", sizeof(end));
             }
 
-            printf("Index %d, Channel %d, Name %s, Start %ld(%s), End %ld(%s)\n",
+            log_i("Index %d, Channel %d, Name %s, Start %ld(%s), End %ld(%s)",
                    epg[i].index, epg[i].channel, epg[i].name, epg[i].start,
                    start, epg[i].end, end);
         }
     }
 
-    printf("Current program :\n");
+    log_i("Current program :");
     if (epg)
     {
         for (int i = 0; i < index_count; i++)
@@ -2163,8 +2167,8 @@ static void *command_func_epg_print(void *context, int index, void **arg)
                     strncpy(end, "1970-01-01 00:00:00", sizeof(end));
                 }
 
-                printf("Index %d, Channel %d, Name %s, Start %ld(%s), "
-                       "End %ld(%s)\n", ret_epg.index, ret_epg.channel,
+                log_i("Index %d, Channel %d, Name %s, Start %ld(%s), "
+                       "End %ld(%s)", ret_epg.index, ret_epg.channel,
                        ret_epg.name, ret_epg.start, start, ret_epg.end, end);
             }
         }
@@ -2173,7 +2177,7 @@ static void *command_func_epg_print(void *context, int index, void **arg)
     ret = pthread_mutex_unlock(mutex);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not unlock mutex\n");
+        log_e("Could not unlock mutex");
 
         return NULL;
     }
@@ -2185,7 +2189,7 @@ static void *command_func_program_end(void *context, int index, void **arg)
 {
     int *program_end_flag = (int *)context;
 
-    printf("Program end\n");
+    log_i("Program end");
 
     *program_end_flag = 1;
 }
@@ -2203,10 +2207,13 @@ int main(int argc, char **argv)
     char *loudness_log_path = NULL;
     char *av_record_path = NULL;
     char *epg_xml_path = NULL;
+    char *log_output = DEFAULT_LOG_OUTPUT;
+    LogLevel log_level = DEFAULT_LOG_LEVEL;
     ret = get_option(argc, argv, ipc_socket_name, &ipc_socket_name_count,
                      lircd_socket_name, &lircd_socket_name_count,
                      &sqlite_database_name, &messenger_port_number,
-                     &loudness_log_path, &av_record_path, &epg_xml_path);
+                     &loudness_log_path, &av_record_path, &epg_xml_path,
+                     &log_output, &log_level);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -2214,13 +2221,15 @@ int main(int argc, char **argv)
         return -1;
     }
 
+    log_open(argv[0], log_output, log_level);
+
     IpcContext ipc_context[IPC_SOCKET_COUNT];
     for (int i = 0; i < ipc_socket_name_count; i++)
     {
         ret = ipc_init(ipc_socket_name[i], &ipc_context[i]);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not initialize IPC\n");
+            log_e("Could not initialize IPC");
 
             for (int j = 0; j < i; j++)
             {
@@ -2238,7 +2247,7 @@ int main(int argc, char **argv)
                             &irremote_context[i]);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not initialize IR\n");
+            log_e("Could not initialize IR");
 
             for (int j = 0; j < i; j++)
             {
@@ -2258,7 +2267,7 @@ int main(int argc, char **argv)
     ret = database_init(sqlite_database_name, &database_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize database\n");
+        log_e("Could not initialize database");
 
         for (int i = 0; i < lircd_socket_name_count; i++)
         {
@@ -2278,7 +2287,7 @@ int main(int argc, char **argv)
                          &messenger_context);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not initialize messenger\n");
+        log_e("Could not initialize messenger");
 
         database_uninit(&database_context);
 
@@ -2304,7 +2313,7 @@ int main(int argc, char **argv)
         ret = epg_init(name, EPG_BROADCAST_SERVICE_OPERATOR, &epg_context[i]);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not initialize EPG\n");
+            log_e("Could not initialize EPG");
 
             for (int j = 0; j < i; j++)
             {
@@ -2333,7 +2342,7 @@ int main(int argc, char **argv)
     ret = fcntl(STDIN_FILENO, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set stdin flag\n");
+        log_e("Could not set stdin flag");
 
         for (int i = 0; i < ipc_socket_name_count; i++)
         {
@@ -2361,7 +2370,7 @@ int main(int argc, char **argv)
     ret = get_my_ip(my_ip);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get my ip\n");
+        log_e("Could not get my ip");
 
         ret = fcntl(STDIN_FILENO, F_GETFL, 0);
         fcntl(STDIN_FILENO, F_SETFL, ret & ~O_NONBLOCK);
@@ -2424,13 +2433,13 @@ int main(int argc, char **argv)
     ret = load_status_data(&database_context, status, ipc_socket_name_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not load status data\n");
+        log_e("Could not load status data");
     }
 
     ret = load_schedule_data(&database_context, &schedule);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not load schedule data\n");
+        log_e("Could not load schedule data");
     }
 
     for (int i = 0; i < ipc_socket_name_count; i++)
@@ -2440,7 +2449,7 @@ int main(int argc, char **argv)
             ret = channel_change(irremote_context, i, status[i].channel);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not change channel\n");
+                log_e("Could not change channel");
             }
         }
 
@@ -2451,7 +2460,7 @@ int main(int argc, char **argv)
                                            time(NULL));
             if (ret != 0)
             {
-                fprintf(stderr, "Could not update log list end data\n");
+                log_e("Could not update log list end data");
             }
 
             status[i].loudness_log_name[0] = 0;
@@ -2470,15 +2479,12 @@ int main(int argc, char **argv)
                                  channel_name, loudness_log_path, &log_list);
         if (ret == 0)
         {
-            float uptime;
-            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-            printf("[%.3f] %d, Loudness log start\n", uptime, i);
+            log_i("%d, Loudness log start", i);
 
             ret = save_log_list_data(&database_context, &log_list, 1);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not save log list data\n");
+                log_e("Could not save log list data");
             }
 
             strncpy(status[i].loudness_log_name, log_list.name,
@@ -2493,7 +2499,7 @@ int main(int argc, char **argv)
     ret = save_status_data(&database_context, status, ipc_socket_name_count);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not save status data\n");
+        log_e("Could not save status data");
     }
 
     while (!program_end_flag)
@@ -2504,36 +2510,33 @@ int main(int argc, char **argv)
             ret = ipc_receive_message(&ipc_context[i], &ipc_message);
             if (ret == 0)
             {
-                float uptime;
-                uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                //printf("[%.3f] %d, IPC message received\n", uptime, i);
+                log_d("%d, IPC message received", i);
 
                 switch (ipc_message.command)
                 {
                     case IPC_COMMAND_AV_RECORD_LOUDNESS_DATA:
                     {
-                        printf("[%.3f] %d, AV record loudness data %s\n",
-                               uptime, i, ipc_message.arg);
+                        log_i("%d, AV record loudness data %s", i,
+                              ipc_message.arg);
 
                         char *str;
                         str = strtok(ipc_message.arg, " ");
                         if (!str || strlen(str) == 0)
                         {
-                            printf("Null AV record name\n");
+                            log_i("Null AV record name");
                             break;
                         }
                         char *name;
                         name = basename(str);
                         if (!name || strlen(name) == 0)
                         {
-                            printf("Null AV record basename\n");
+                            log_i("Null AV record basename");
                             break;
                         }
                         str = strtok(NULL, " ");
                         if (!str || strlen(str) == 0)
                         {
-                            printf("Null AV record integrated loudness data\n");
+                            log_i("Null AV record integrated loudness data");
                             break;
                         }
                         double integrated;
@@ -2548,8 +2551,8 @@ int main(int argc, char **argv)
                                                               name, integrated);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not update "
-                                            "playback list loudness data\n");
+                            log_e("Could not update "
+                                  "playback list loudness data");
                         }
                         break;
                     }
@@ -2560,21 +2563,21 @@ int main(int argc, char **argv)
                         momentary = strtok(ipc_message.arg, " ");
                         if (!momentary || strlen(momentary) == 0)
                         {
-                            printf("Null momentary loudness data\n");
+                            log_i("Null momentary loudness data");
                             break;
                         }
                         char *shortterm;
                         shortterm = strtok(NULL, " ");
                         if (!shortterm || strlen(shortterm) == 0)
                         {
-                            printf("Null shortterm loudness data\n");
+                            log_i("Null shortterm loudness data");
                             break;
                         }
                         char *integrated;
                         integrated = strtok(NULL, " ");
                         if (!integrated || strlen(integrated) == 0)
                         {
-                            printf("Null integrated loudness data\n");
+                            log_i("Null integrated loudness data");
                             break;
                         }
 
@@ -2587,7 +2590,7 @@ int main(int argc, char **argv)
 
                     case IPC_COMMAND_PROGRAM_END:
                     {
-                        printf("Program end\n");
+                        log_i("Program end");
 
                         program_end_flag = 1;
                         continue;
@@ -2606,10 +2609,7 @@ int main(int argc, char **argv)
                                         &messenger_recv_message);
         if (ret == 0)
         {
-            float uptime;
-            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-            //printf("[%.3f] Messenger message received\n", uptime);
+            log_d("Messenger message received");
 
             MessengerMessage messenger_message;
 
@@ -2621,10 +2621,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] AV stream start\n", uptime);
+                    log_i("AV stream start");
 
                     if (messenger_recv_message.data)
                     {
@@ -2641,8 +2641,7 @@ int main(int argc, char **argv)
                                                       data[i].port);
                                 if (ret != 0)
                                 {
-                                    fprintf(stderr,
-                                            "Could not start AV stream\n");
+                                    log_e("Could not start AV stream");
                                 }
                             }
                         }
@@ -2656,10 +2655,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] AV stream stop\n", uptime);
+                    log_i("AV stream stop");
 
                     if (messenger_recv_message.data)
                     {
@@ -2674,8 +2673,7 @@ int main(int argc, char **argv)
                                                     data[i].index);
                                 if (ret != 0)
                                 {
-                                    fprintf(stderr,
-                                            "Could not stop AV stream\n");
+                                    log_e("Could not stop AV stream");
                                 }
                             }
                         }
@@ -2689,10 +2687,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Loudness send start\n", uptime);
+                    log_i("Loudness send start");
 
                     loudness_send_flag = 1;
                     break;
@@ -2704,10 +2702,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Loudness send stop\n", uptime);
+                    log_i("Loudness send stop");
 
                     loudness_send_flag = 0;
                     break;
@@ -2719,10 +2717,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Status send start\n", uptime);
+                    log_i("Status send start");
 
                     status_send_flag = 1;
                     break;
@@ -2734,10 +2732,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Status send stop\n", uptime);
+                    log_i("Status send stop");
 
                     status_send_flag = 0;
                     break;
@@ -2749,10 +2747,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Channel change\n", uptime);
+                    log_i("Channel change");
 
                     if (messenger_recv_message.data)
                     {
@@ -2765,7 +2763,7 @@ int main(int argc, char **argv)
                                 data[i].channel ==
                                 status[data[i].index].channel)
                             {
-                                printf("Same channel\n");
+                                log_i("Same channel");
                             }
                             else
                             {
@@ -2777,8 +2775,7 @@ int main(int argc, char **argv)
                                                          data[i].channel);
                                     if (ret != 0)
                                     {
-                                        fprintf(stderr,
-                                                "Could not change channel\n");
+                                        log_e("Could not change channel");
                                     }
                                     else
                                     {
@@ -2795,12 +2792,7 @@ int main(int argc, char **argv)
                                     ret = loudness_log_end(ipc_context, index);
                                     if (ret == 0)
                                     {
-                                        float uptime;
-                                        uptime = (float)(get_usec() -
-                                                 start_usec) / 1000000;
-
-                                        printf("[%.3f] %d, Loudness log end\n",
-                                               uptime, index);
+                                        log_i("%d, Loudness log end", index);
                                     }
 
                                     if (strlen(status[index].loudness_log_name))
@@ -2811,8 +2803,8 @@ int main(int argc, char **argv)
                                                 time(NULL));
                                         if (ret != 0)
                                         {
-                                            fprintf(stderr, "Could not update "
-                                                    "log list end data\n");
+                                            log_e("Could not update "
+                                                  "log list end data");
                                         }
 
                                         status[index].loudness_log_name[0] = 0;
@@ -2821,8 +2813,7 @@ int main(int argc, char **argv)
                                     ret = loudness_reset(ipc_context, index);
                                     if (ret != 0)
                                     {
-                                        fprintf(stderr,
-                                                "Could not reset loudness\n");
+                                        log_e("Could not reset loudness");
                                     }
 
                                     char *channel_name = NULL;
@@ -2842,20 +2833,15 @@ int main(int argc, char **argv)
                                                   loudness_log_path, &log_list);
                                     if (ret == 0)
                                     {
-                                        float uptime;
-                                        uptime = (float)(get_usec() -
-                                                 start_usec) / 1000000;
-
-                                        printf("[%.3f] %d, Loudness log "
-                                               "start\n", uptime, index);
+                                        log_i("%d, Loudness log start", index);
 
                                         ret = save_log_list_data(
                                                               &database_context,
                                                               &log_list, 1);
                                         if (ret != 0)
                                         {
-                                            fprintf(stderr, "Could not save "
-                                                            "log list data\n");
+                                            log_e("Could not save "
+                                                  "log list data");
                                         }
 
                                         strncpy(status[index].loudness_log_name,
@@ -2873,8 +2859,7 @@ int main(int argc, char **argv)
                                                       &epg, &epg_count);
                                     if (ret != 0)
                                     {
-                                        fprintf(stderr,
-                                                "Could not request epg\n");
+                                        log_e("Could not request epg");
                                     }
                                 }
                             }
@@ -2885,7 +2870,7 @@ int main(int argc, char **argv)
                                            ipc_socket_name_count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not save status data\n");
+                        log_e("Could not save status data");
                     }
                     break;
                 }
@@ -2896,10 +2881,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Loudness reset\n", uptime);
+                    log_i("Loudness reset");
 
                     if (messenger_recv_message.data)
                     {
@@ -2914,8 +2899,7 @@ int main(int argc, char **argv)
                                                      data[i].index);
                                 if (ret != 0)
                                 {
-                                    fprintf(stderr,
-                                            "Could not reset loudness\n");
+                                    log_e("Could not reset loudness");
                                 }
                             }
                         }
@@ -2929,10 +2913,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] Schedule\n", uptime);
+                    log_i("Schedule");
 
                     if (schedule)
                     {
@@ -2943,7 +2927,7 @@ int main(int argc, char **argv)
                                             (messenger_recv_message.count + 1));
                     if (!schedule)
                     {
-                        fprintf(stderr, "Could not allocate schedule buffer\n");
+                        log_e("Could not allocate schedule buffer");
                         break;
                     }
 
@@ -2981,14 +2965,14 @@ int main(int argc, char **argv)
                     ret = save_schedule_data(&database_context, schedule);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not save schedule data\n");
+                        log_e("Could not save schedule data");
                     }
                     break;
                 }
 
                 case MESSENGER_MESSAGE_TYPE_SCHEDULE_REQUEST:
                 {
-                    printf("[%.3f] Schedule request\n", uptime);
+                    log_i("Schedule request");
 
                     int count = 0;
                     MessengerScheduleData *data = NULL;
@@ -3004,8 +2988,8 @@ int main(int argc, char **argv)
                                                 sizeof(MessengerScheduleData));
                         if (!data)
                         {
-                            fprintf(stderr, "Could not allocate messenger "
-                                    "schedule data buffer\n");
+                            log_e("Could not allocate "
+                                  "messenger schedule data buffer");
                             break;
                         }
 
@@ -3054,8 +3038,7 @@ int main(int argc, char **argv)
                                                  &messenger_message);
                     if (ret != 0)
                     {
-                        fprintf(stderr,
-                                "Could not send messenger schedule message\n");
+                        log_e("Could not send messenger schedule message");
                     }
 
                     if (data)
@@ -3067,7 +3050,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_PLAYBACK_LIST_REQUEST:
                 {
-                    printf("[%.3f] Playback list request\n", uptime);
+                    log_i("Playback list request");
 
                     PlaybackList *list = NULL;
                     int count = 0;
@@ -3075,7 +3058,7 @@ int main(int argc, char **argv)
                                                   &count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not load playback list data\n");
+                        log_e("Could not load playback list data");
                         break;
                     }
 
@@ -3085,8 +3068,8 @@ int main(int argc, char **argv)
                                              count);
                     if (!data)
                     {
-                        fprintf(stderr, "Could not allocate messenger "
-                                        "playback list data buffer\n");
+                        log_e("Could not allocate "
+                              "messenger playback list data buffer");
 
                         if (list)
                         {
@@ -3132,8 +3115,7 @@ int main(int argc, char **argv)
                                                  &messenger_message);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send messenger "
-                                        "playback list message\n");
+                        log_e("Could not send messenger playback list message");
                     }
 
                     if (data)
@@ -3145,14 +3127,14 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_LOG_LIST_REQUEST:
                 {
-                    printf("[%.3f] Log list request\n", uptime);
+                    log_i("Log list request");
 
                     LogList *list = NULL;
                     int count = 0;
                     ret = load_log_list_data(&database_context, &list, &count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not load log list data\n");
+                        log_e("Could not load log list data");
                         break;
                     }
 
@@ -3162,8 +3144,8 @@ int main(int argc, char **argv)
                                                   count);
                     if (!data)
                     {
-                        fprintf(stderr, "Could not allocate messenger "
-                                        "log list data buffer\n");
+                        log_e("Could not allocate "
+                              "messenger log list data buffer");
 
                         if (list)
                         {
@@ -3201,8 +3183,7 @@ int main(int argc, char **argv)
                                                  &messenger_message);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send messenger "
-                                        "log list message\n");
+                        log_e("Could not send messenger log list message");
                     }
 
                     if (data)
@@ -3217,10 +3198,10 @@ int main(int argc, char **argv)
                                            messenger_recv_message.number);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send ack message\n");
+                        log_e("Could not send ack message");
                     }
 
-                    printf("[%.3f] User loudness\n", uptime);
+                    log_i("User loudness");
 
                     if (messenger_recv_message.data)
                     {
@@ -3230,8 +3211,7 @@ int main(int argc, char **argv)
                                                           sizeof(UserLoudness));
                         if (!user_loudness)
                         {
-                            fprintf(stderr, "Could not allocate "
-                                            "user loudness buffer\n");
+                            log_e("Could not allocate user loudness buffer");
                             break;
                         }
 
@@ -3256,8 +3236,8 @@ int main(int argc, char **argv)
                                                    sizeof(UserLoudnessSection));
                                 if (!section)
                                 {
-                                    fprintf(stderr, "Could not allocate "
-                                            "user loudness section buffer\n");
+                                    log_e("Could not allocate "
+                                          "user loudness section buffer");
                                     break;
                                 }
 
@@ -3289,8 +3269,8 @@ int main(int argc, char **argv)
                                                               section_count);
                                 if (ret != 0)
                                 {
-                                    fprintf(stderr, "Could not save "
-                                            "user loudness section data\n");
+                                    log_e("Could not save "
+                                          "user loudness section data");
                                 }
 
                                 free(section);
@@ -3303,8 +3283,7 @@ int main(int argc, char **argv)
                                                           user_loudness, count);
                             if (ret != 0)
                             {
-                                fprintf(stderr,
-                                        "Could not save user loudness data\n");
+                                log_e("Could not save user loudness data");
                             }
                         }
 
@@ -3315,7 +3294,7 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_USER_LOUDNESS_REQUEST:
                 {
-                    printf("[%.3f] User loudness request\n", uptime);
+                    log_i("User loudness request");
 
                     if (messenger_recv_message.data)
                     {
@@ -3324,7 +3303,7 @@ int main(int argc, char **argv)
                                                sizeof(char *));
                         if (!name)
                         {
-                            fprintf(stderr, "Could not allocate name buffer\n");
+                            log_e("Could not allocate name buffer");
                             break;
                         }
 
@@ -3344,8 +3323,7 @@ int main(int argc, char **argv)
                                                    &count);
                         if (ret != 0)
                         {
-                            fprintf(stderr,
-                                    "Could not load user loudness data\n");
+                            log_e("Could not load user loudness data");
 
                             free(name);
                             break;
@@ -3358,8 +3336,8 @@ int main(int argc, char **argv)
                         data = (MessengerUserLoudnessData *)malloc(size);
                         if (!data)
                         {
-                            fprintf(stderr, "Could not allocate messenger "
-                                            "user loudness data buffer\n");
+                            log_e("Could not allocate "
+                                  "messenger user loudness data buffer");
 
                             if (user_loudness)
                             {
@@ -3380,8 +3358,8 @@ int main(int argc, char **argv)
                                                           &section_count);
                             if (ret != 0)
                             {
-                                fprintf(stderr, "Could not load "
-                                                "user loudness section data\n");
+                                log_e("Could not load "
+                                      "user loudness section data");
                                 break;
                             }
 
@@ -3392,8 +3370,8 @@ int main(int argc, char **argv)
                                            malloc(size);
                             if (!section_data)
                             {
-                                fprintf(stderr, "Could not allocate messenger "
-                                        "user loudness section data buffer\n");
+                                log_e("Could not allocate messenger "
+                                      "user loudness section data buffer");
 
                                 if (section)
                                 {
@@ -3448,8 +3426,8 @@ int main(int argc, char **argv)
                                                          &messenger_message);
                             if (ret != 0)
                             {
-                                fprintf(stderr, "Could not send messenger "
-                                                "user loudness message\n");
+                                log_e("Could not send "
+                                      "messenger user loudness message");
                             }
                         }
 
@@ -3468,14 +3446,14 @@ int main(int argc, char **argv)
 
                 case MESSENGER_MESSAGE_TYPE_CHANNEL_LIST_REQUEST:
                 {
-                    printf("[%.3f] Channel list request\n", uptime);
+                    log_i("Channel list request");
 
                     EpgChannelData *list = NULL;
                     int count = 0;
                     ret = epg_get_channel_data(epg_context, &list, &count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not get channel list data\n");
+                        log_e("Could not get channel list data");
                         break;
                     }
 
@@ -3485,8 +3463,8 @@ int main(int argc, char **argv)
                                               count);
                     if (!data)
                     {
-                        fprintf(stderr, "Could not allocate messenger "
-                                        "channel list data buffer\n");
+                        log_e("Could not allocate "
+                              "messenger channel list data buffer");
 
                         if (list)
                         {
@@ -3519,8 +3497,7 @@ int main(int argc, char **argv)
                                                  &messenger_message);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not send messenger "
-                                        "channel list message\n");
+                        log_e("Could not send messenger channel list message");
                     }
 
                     if (data)
@@ -3585,8 +3562,7 @@ int main(int argc, char **argv)
                                              &messenger_message);
                 if (ret != 0)
                 {
-                    fprintf(stderr,
-                                 "Could not send messenger loudness message\n");
+                    log_e("Could not send messenger loudness message");
                 }
             }
 
@@ -3617,8 +3593,7 @@ int main(int argc, char **argv)
                                              &messenger_message);
                 if (ret != 0)
                 {
-                    fprintf(stderr,
-                                   "Could not send messenger status message\n");
+                    log_e("Could not send messenger status message");
                 }
             }
 
@@ -3634,7 +3609,7 @@ int main(int argc, char **argv)
                                   &epg, &epg_count);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not request epg\n");
+                    log_e("Could not request epg");
                 }
             }
 
@@ -3685,7 +3660,7 @@ int main(int argc, char **argv)
                         strncpy(end2, "1970-01-01 00:00:00", sizeof(end2));
                     }
 
-                    printf("New schedule ~ %d, %s %s %d -> %s %s %d\n", i,
+                    log_i("New schedule ~ %d, %s %s %d -> %s %s %d", i,
                            start1, end1, current_schedule[i].channel,
                            start2, end2, ret_schedule->channel);
                 }
@@ -3694,7 +3669,7 @@ int main(int argc, char **argv)
                 {
                     if (ret_schedule->channel == status[i].channel)
                     {
-                        printf("Same channel\n");
+                        log_i("Same channel");
                     }
                     else
                     {
@@ -3704,8 +3679,7 @@ int main(int argc, char **argv)
                                                  i, ret_schedule->channel);
                             if (ret != 0)
                             {
-                                fprintf(stderr,
-                                        "Could not change AV record channel\n");
+                                log_e("Could not change AV record channel");
                             }
                             else
                             {
@@ -3716,10 +3690,7 @@ int main(int argc, char **argv)
                         ret = loudness_log_end(ipc_context, i);
                         if (ret == 0)
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            printf("[%.3f] %d, Loudness log end\n", uptime, i);
+                            log_i("%d, Loudness log end", i);
                         }
 
                         if (strlen(status[i].loudness_log_name))
@@ -3729,8 +3700,7 @@ int main(int argc, char **argv)
                                                     time(NULL));
                             if (ret != 0)
                             {
-                                fprintf(stderr,
-                                        "Could not update log list end data\n");
+                                log_e("Could not update log list end data");
                             }
 
                             status[i].loudness_log_name[0] = 0;
@@ -3739,7 +3709,7 @@ int main(int argc, char **argv)
                         ret = loudness_reset(ipc_context, i);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not reset loudness\n");
+                            log_e("Could not reset loudness");
                         }
 
                         char *channel_name = NULL;
@@ -3758,18 +3728,13 @@ int main(int argc, char **argv)
                                                  loudness_log_path, &log_list);
                         if (ret == 0)
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            printf("[%.3f] %d, Loudness log start\n", uptime,
-                                   i);
+                            log_i("%d, Loudness log start", i);
 
                             ret = save_log_list_data(&database_context,
                                                      &log_list, 1);
                             if (ret != 0)
                             {
-                                fprintf(stderr,
-                                        "Could not save log list data\n");
+                                log_e("Could not save log list data");
                             }
 
                             strncpy(status[i].loudness_log_name, log_list.name,
@@ -3785,7 +3750,7 @@ int main(int argc, char **argv)
                                           &epg_count);
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not request epg\n");
+                            log_e("Could not request epg");
                         }
                     }
 
@@ -3796,8 +3761,7 @@ int main(int argc, char **argv)
                                                        time(NULL));
                         if (ret != 0)
                         {
-                            fprintf(stderr, "Could not update "
-                                            "playback list end data\n");
+                            log_e("Could not update playback list end data");
                         }
 
                         status[i].av_record_name[0] = 0;
@@ -3817,17 +3781,13 @@ int main(int argc, char **argv)
                                           &playback_list);
                     if (ret == 0)
                     {
-                        float uptime;
-                        uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                        printf("[%.3f] %d, AV record start\n", uptime, i);
+                        log_i("%d, AV record start", i);
 
                         ret = save_playback_list_data(&database_context,
                                                       &playback_list, 1);
                         if (ret != 0)
                         {
-                            fprintf(stderr,
-                                    "Could not save playback list data\n");
+                            log_e("Could not save playback list data");
                         }
 
                         status[i].recording = 1;
@@ -3846,7 +3806,7 @@ int main(int argc, char **argv)
                                            ipc_socket_name_count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not save status data\n");
+                        log_e("Could not save status data");
                     }
 
                     memcpy(&current_schedule[i], ret_schedule,
@@ -3873,16 +3833,13 @@ int main(int argc, char **argv)
                     strncpy(end, "1970-01-01 00:00:00", sizeof(end));
                 }
 
-                printf("End schedule ~ %d, %s %s %d\n", i,
-                       start, end, current_schedule[i].channel);
+                log_i("End schedule ~ %d, %s %s %d", i, start, end,
+                      current_schedule[i].channel);
 
                 ret = av_record_end(ipc_context, i);
                 if (ret == 0)
                 {
-                    float uptime;
-                    uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                    printf("[%.3f] %d, AV record end\n", uptime, i);
+                    log_i("%d, AV record end", i);
                 }
 
                 if (strlen(status[i].av_record_name))
@@ -3892,8 +3849,7 @@ int main(int argc, char **argv)
                                                        time(NULL));
                     if (ret != 0)
                     {
-                        fprintf(stderr,
-                                "Could not update playback list end data\n");
+                        log_e("Could not update playback list end data");
                     }
 
                     status[i].av_record_name[0] = 0;
@@ -3907,7 +3863,7 @@ int main(int argc, char **argv)
                                        ipc_socket_name_count);
                 if (ret != 0)
                 {
-                    fprintf(stderr, "Could not save status data\n");
+                    log_e("Could not save status data");
                 }
             }
 
@@ -3952,10 +3908,10 @@ int main(int argc, char **argv)
                         strncpy(end2, "1970-01-01 00:00:00", sizeof(end2));
                     }
 
-                    printf("New program ~ %d, %s %s %s %d -> %s %s %s %d\n", i,
-                           current_epg[i].name, start1, end1,
-                           current_epg[i].channel, ret_epg.name, start2, end2,
-                           ret_epg.channel);
+                    log_i("New program ~ %d, %s %s %s %d -> %s %s %s %d", i,
+                          current_epg[i].name, start1, end1,
+                          current_epg[i].channel, ret_epg.name, start2, end2,
+                          ret_epg.channel);
                 }
 
                 if (status[i].recording && strlen(status[i].av_record_name) &&
@@ -3969,8 +3925,7 @@ int main(int argc, char **argv)
                                                        ret_epg.end);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not update "
-                                        "playback list program data\n");
+                        log_e("Could not update playback list program data");
                     }
 
                     status[i].program_data_updated = 1;
@@ -3979,7 +3934,7 @@ int main(int argc, char **argv)
                                            ipc_socket_name_count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not save status data\n");
+                        log_e("Could not save status data");
                     }
                 }
 
@@ -3998,7 +3953,7 @@ int main(int argc, char **argv)
                     ret = loudness_reset(ipc_context, i);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not reset loudness\n");
+                        log_e("Could not reset loudness");
                     }
 
                     if (status[i].recording)
@@ -4011,8 +3966,8 @@ int main(int argc, char **argv)
                                                        time(NULL));
                             if (ret != 0)
                             {
-                                fprintf(stderr, "Could not update "
-                                                "playback list end data\n");
+                                log_e("Could not update "
+                                      "playback list end data");
                             }
 
                             status[i].av_record_name[0] = 0;
@@ -4034,17 +3989,13 @@ int main(int argc, char **argv)
                                               av_record_path, &playback_list);
                         if (ret == 0)
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            printf("[%.3f] %d, AV record start\n", uptime, i);
+                            log_i("%d, AV record start", i);
 
                             ret = save_playback_list_data(&database_context,
                                                           &playback_list, 1);
                             if (ret != 0)
                             {
-                                fprintf(stderr,
-                                        "Could not save playback list data\n");
+                                log_e("Could not save playback list data");
                             }
 
                             status[i].recording = 1;
@@ -4061,8 +4012,8 @@ int main(int argc, char **argv)
                                                        ret_epg.end);
                             if (ret != 0)
                             {
-                                fprintf(stderr, "Could not update "
-                                                "playback list program data\n");
+                                log_e("Could not update "
+                                      "playback list program data");
                             }
 
                             status[i].program_data_updated = 1;
@@ -4079,7 +4030,7 @@ int main(int argc, char **argv)
                                            ipc_socket_name_count);
                     if (ret != 0)
                     {
-                        fprintf(stderr, "Could not save status data\n");
+                        log_e("Could not save status data");
                     }
 
                     memcpy(&current_epg[i], &ret_epg, sizeof(Epg));
@@ -4124,7 +4075,7 @@ int main(int argc, char **argv)
                     {
                         if (!idx)
                         {
-                            printf("Need index\n");
+                            log_i("Need index");
 
                             break;
                         }
@@ -4132,7 +4083,7 @@ int main(int argc, char **argv)
                         int index = strtol(idx, NULL, 10);
                         if (ipc_socket_name_count <= index)
                         {
-                            printf("Wrong index\n");
+                            log_i("Wrong index");
 
                             break;
                         }
@@ -4151,8 +4102,8 @@ int main(int argc, char **argv)
 
                         if (j != ipc_command_table[i].argc)
                         {
-                            printf("Need %d arguments\n",
-                                   ipc_command_table[i].argc);
+                            log_i("Need %d arguments",
+                                  ipc_command_table[i].argc);
 
                             break;
                         }
@@ -4161,11 +4112,7 @@ int main(int argc, char **argv)
                                                &ipc_message);
                         if (ret == 0)
                         {
-                            float uptime;
-                            uptime = (float)(get_usec() - start_usec) / 1000000;
-
-                            printf("[%.3f] %d, IPC message sent\n", uptime,
-                                   index);
+                            log_i("%d, IPC message sent", index);
                         }
 
                         break;
@@ -4219,7 +4166,7 @@ int main(int argc, char **argv)
                         {
                             if (!idx)
                             {
-                                printf("Need index\n");
+                                log_i("Need index");
 
                                 break;
                             }
@@ -4227,7 +4174,7 @@ int main(int argc, char **argv)
                             index = strtol(idx, NULL, 10);
                             if (command_table[k].index_count <= index)
                             {
-                                printf("Wrong index\n");
+                                log_i("Wrong index");
 
                                 break;
                             }
@@ -4240,8 +4187,7 @@ int main(int argc, char **argv)
 
                         if (j != command_table[k].argc)
                         {
-                            printf("Need %d arguments\n",
-                                   command_table[k].argc);
+                            log_i("Need %d arguments", command_table[k].argc);
 
                             break;
                         }
@@ -4258,7 +4204,7 @@ int main(int argc, char **argv)
 
                 if (!ipc_command_table[i].command && !command_table[k].command)
                 {
-                    printf("Wrong command\n");
+                    log_i("Wrong command");
                 }
             }
         }
@@ -4289,6 +4235,8 @@ int main(int argc, char **argv)
     {
         ipc_uninit(&ipc_context[i]);
     }
+
+    log_close();
 
     return 0;
 }

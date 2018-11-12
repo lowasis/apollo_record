@@ -4,7 +4,7 @@ CFLAGS = -MMD `xml2-config --cflags`
 LDFLAGS =
 INCS =
 LIBS = -lpthread -llirc_client -lxml2 -lsqlite3 -lpython2.7
-OBJS = main.o ipc.o irremote.o database.o messenger.o epg.o
+OBJS = main.o ipc.o irremote.o database.o messenger.o epg.o log.o
 TARGET = apollo_controller
 ifeq ($(PREFIX),)
 	PREFIX := /usr/local

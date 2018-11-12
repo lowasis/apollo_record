@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sqlite3.h>
+#include "log.h"
 #include "database.h"
 
 
@@ -363,7 +364,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_open(name, &context->db);
     if (ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not open sqlite3\n");
+        log_e("Could not open sqlite3");
 
         return -1;
     }
@@ -383,7 +384,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 create status table\n");
+        log_e("Could not execute sqlite3 create status table");
 
         return -1;
     }
@@ -398,7 +399,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 create schedule table\n");
+        log_e("Could not execute sqlite3 create schedule table");
 
         return -1;
     }
@@ -423,8 +424,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 create playback list table\n");
+        log_e("Could not execute sqlite3 create playback list table");
 
         return -1;
     }
@@ -443,8 +443,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 create log list table\n");
+        log_e("Could not execute sqlite3 create log list table");
 
         return -1;
     }
@@ -459,8 +458,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 create user loudness table\n");
+        log_e("Could not execute sqlite3 create user loudness table");
 
         return -1;
     }
@@ -478,9 +476,7 @@ int database_init(char *name, DatabaseContext *context)
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 create "
-                "user loudness section table\n");
+        log_e("Could not execute sqlite3 create user loudness section table");
 
         return -1;
     }
@@ -514,7 +510,7 @@ int database_count_status_data(DatabaseContext *context, int *count)
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 count status data\n");
+        log_e("Could not execute sqlite3 count status data");
 
         return -1;
     }
@@ -547,7 +543,7 @@ int database_set_status_data(DatabaseContext *context, DatabaseStatusData *data,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr, "Could not execute sqlite3 replace status data\n");
+            log_e("Could not execute sqlite3 replace status data");
 
             return -1;
         }
@@ -577,7 +573,7 @@ int database_get_status_data(DatabaseContext *context, DatabaseStatusData *data,
                        (void *)arg, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 select status data\n");
+        log_e("Could not execute sqlite3 select status data");
 
         return -1;
     }
@@ -601,7 +597,7 @@ int database_count_schedule_data(DatabaseContext *context, int *count)
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 count schedule data\n");
+        log_e("Could not execute sqlite3 count schedule data");
 
         return -1;
     }
@@ -625,7 +621,7 @@ int database_set_schedule_data(DatabaseContext *context,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 delete schedule data\n");
+        log_e("Could not execute sqlite3 delete schedule data");
 
         return -1;
     }
@@ -640,7 +636,7 @@ int database_set_schedule_data(DatabaseContext *context,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr, "Could not execute sqlite3 insert schedule data\n");
+            log_e("Could not execute sqlite3 insert schedule data");
 
             return -1;
         }
@@ -669,7 +665,7 @@ int database_get_schedule_data(DatabaseContext *context,
                        (void *)arg, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 select schedule data\n");
+        log_e("Could not execute sqlite3 select schedule data");
 
         return -1;
     }
@@ -693,7 +689,7 @@ int database_count_playback_list_data(DatabaseContext *context, int *count)
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 count playback list data\n");
+        log_e("Could not execute sqlite3 count playback list data");
 
         return -1;
     }
@@ -729,8 +725,7 @@ int database_set_playback_list_data(DatabaseContext *context,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr,
-                    "Could not execute sqlite3 insert playback list data\n");
+            log_e("Could not execute sqlite3 insert playback list data");
 
             return -1;
         }
@@ -760,8 +755,7 @@ int database_get_playback_list_data(DatabaseContext *context,
                        (void *)arg, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 select playback list data\n");
+        log_e("Could not execute sqlite3 select playback list data");
 
         return -1;
     }
@@ -792,16 +786,14 @@ int database_get_playback_list_data_one(DatabaseContext *context, char *name,
                        (void *)arg, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 select playback list data one\n");
+        log_e("Could not execute sqlite3 select playback list data one");
 
         return -1;
     }
 
     if (i == 0)
     {
-        fprintf(stderr,
-                "Could not find sqlite3 playback list data one \n");
+        log_e("Could not find sqlite3 playback list data one ");
 
         return -1;
     }
@@ -827,8 +819,7 @@ int database_update_playback_list_end_data(DatabaseContext *context, char *name,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 update "
-                        "playback list end data\n");
+        log_e("Could not execute sqlite3 update playback list end data");
 
         return -1;
     }
@@ -858,8 +849,7 @@ int database_update_playback_list_program_data(DatabaseContext *context,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 update "
-                        "playback list program data\n");
+        log_e("Could not execute sqlite3 update playback list program data");
 
         return -1;
     }
@@ -885,8 +875,7 @@ int database_update_playback_list_loudness_data(DatabaseContext *context,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 update "
-                        "playback list loudness data\n");
+        log_e("Could not execute sqlite3 update playback list loudness data");
 
         return -1;
     }
@@ -910,7 +899,7 @@ int database_count_log_list_data(DatabaseContext *context, int *count)
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 count log list data\n");
+        log_e("Could not execute sqlite3 count log list data");
 
         return -1;
     }
@@ -942,8 +931,7 @@ int database_set_log_list_data(DatabaseContext *context,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr,
-                    "Could not execute sqlite3 insert log list data\n");
+            log_e("Could not execute sqlite3 insert log list data");
 
             return -1;
         }
@@ -972,8 +960,7 @@ int database_get_log_list_data(DatabaseContext *context,
                        (void *)arg, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 select log list data\n");
+        log_e("Could not execute sqlite3 select log list data");
 
         return -1;
     }
@@ -999,7 +986,7 @@ int database_update_log_list_end_data(DatabaseContext *context, char *name,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 update log list end data\n");
+        log_e("Could not execute sqlite3 update log list end data");
 
         return -1;
     }
@@ -1030,8 +1017,7 @@ int database_count_user_loudness_data(DatabaseContext *context, char **name,
                            NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr,
-                    "Could not execute sqlite3 count user loudness data\n");
+            log_e("Could not execute sqlite3 count user loudness data");
 
             return -1;
         }
@@ -1065,8 +1051,7 @@ int database_set_user_loudness_data(DatabaseContext *context,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr,
-                    "Could not execute sqlite3 insert user loudness data\n");
+            log_e("Could not execute sqlite3 insert user loudness data");
 
             return -1;
         }
@@ -1097,8 +1082,7 @@ int database_get_user_loudness_data(DatabaseContext *context, char **name,
                            (void *)&data[i], NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr,
-                    "Could not execute sqlite3 select user loudness data\n");
+            log_e("Could not execute sqlite3 select user loudness data");
 
             return -1;
         }
@@ -1126,8 +1110,7 @@ int database_count_user_loudness_section_data(DatabaseContext *context,
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr,
-                "Could not execute sqlite3 count user loudness section data\n");
+        log_e("Could not execute sqlite3 count user loudness section data");
 
         return -1;
     }
@@ -1154,8 +1137,7 @@ int database_set_user_loudness_section_data(DatabaseContext *context,
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 delete "
-                        "user loudness section data\n");
+        log_e("Could not execute sqlite3 delete user loudness section data");
 
         return -1;
     }
@@ -1172,8 +1154,8 @@ int database_set_user_loudness_section_data(DatabaseContext *context,
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
         {
-            fprintf(stderr, "Could not execute sqlite3 insert "
-                            "user loudness section data\n");
+            log_e("Could not execute sqlite3 insert "
+                  "user loudness section data");
 
             return -1;
         }
@@ -1207,8 +1189,7 @@ int database_get_user_loudness_section_data(DatabaseContext *context,
                        NULL);
     if(ret != SQLITE_OK)
     {
-        fprintf(stderr, "Could not execute sqlite3 select "
-                        "user loudness section data\n");
+        log_e("Could not execute sqlite3 select user loudness section data");
 
         return -1;
     }

@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include "log.h"
 #include "ipc.h"
 
 
@@ -19,7 +20,7 @@ int ipc_init(char *name, IpcContext *context)
     context->fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (context->fd == -1)
     {
-        fprintf(stderr, "Could not open socket\n");
+        log_e("Could not open socket");
 
         return -1;
     }
@@ -28,7 +29,7 @@ int ipc_init(char *name, IpcContext *context)
     ret = fcntl(context->fd, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set socket flag\n");
+        log_e("Could not set socket flag");
 
         close(context->fd);
 
@@ -42,7 +43,7 @@ int ipc_init(char *name, IpcContext *context)
     ret = connect(context->fd, (struct sockaddr *)&address, sizeof(address));
     if (ret == -1)
     {
-        fprintf(stderr, "Could not connect socket\n");
+        log_e("Could not connect socket");
 
         close(context->fd);
 
@@ -77,7 +78,7 @@ int ipc_send_message(IpcContext *context, IpcMessage *message)
     {
         if (errno == EPIPE)
         {
-            fprintf(stderr, "Could not send message\n");
+            log_e("Could not send message");
         }
 
         return -1;
@@ -106,7 +107,7 @@ int ipc_receive_message(IpcContext *context, IpcMessage *message)
     {
         if (errno == EPIPE)
         {
-            fprintf(stderr, "Could not receive message\n");
+            log_e("Could not receive message");
         }
 
         return -1;

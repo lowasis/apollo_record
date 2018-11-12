@@ -1,4 +1,5 @@
 #include <alsa/asoundlib.h>
+#include "log.h"
 #include "audio.h"
 
 
@@ -14,7 +15,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
     ret = snd_pcm_open(&context->pcm, name, SND_PCM_STREAM_CAPTURE, 0);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not open PCM\n");
+        log_e("Could not open PCM");
 
         return -1;
     }
@@ -22,7 +23,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
     ret = snd_pcm_hw_params_malloc(&context->params);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not allocate PCM params\n");
+        log_e("Could not allocate PCM params");
 
         snd_pcm_close(context->pcm);
 
@@ -32,7 +33,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
     ret = snd_pcm_hw_params_any(context->pcm, context->params);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params any\n");
+        log_e("Could not set PCM params any");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -45,7 +46,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
                                        SND_PCM_ACCESS_RW_INTERLEAVED);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params access\n");
+        log_e("Could not set PCM params access");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -58,7 +59,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
                                        SND_PCM_FORMAT_S16_LE);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params format\n");
+        log_e("Could not set PCM params format");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -71,7 +72,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
                                      0);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params rate\n");
+        log_e("Could not set PCM params rate");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -84,7 +85,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
                                          channels);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params channels\n");
+        log_e("Could not set PCM params channels");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -99,7 +100,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
                                                  &period_size, NULL);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not set PCM params period size\n");
+        log_e("Could not set PCM params period size");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -111,7 +112,7 @@ int audio_init(char *name, int samplerate, int channels, AudioContext *context)
     ret = snd_pcm_hw_params(context->pcm, context->params);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not apply PCM params\n");
+        log_e("Could not apply PCM params");
 
         snd_pcm_hw_params_free(context->params);
 
@@ -151,7 +152,7 @@ int audio_alloc_frame(AudioContext *context, short **frame, int *count)
                                             NULL);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get PCM params period size\n");
+        log_e("Could not get PCM params period size");
 
         return -1;
     }
@@ -160,7 +161,7 @@ int audio_alloc_frame(AudioContext *context, short **frame, int *count)
     ret = snd_pcm_hw_params_get_channels(context->params, &channels);
     if (ret != 0)
     {
-        fprintf(stderr, "Could not get PCM params channels\n");
+        log_e("Could not get PCM params channels");
 
         return -1;
     }
@@ -168,7 +169,7 @@ int audio_alloc_frame(AudioContext *context, short **frame, int *count)
     *frame = (short *)malloc(sizeof(short) * period_size * channels);
     if (!*frame)
     {
-        fprintf(stderr, "Could not allocate PCM buffer\n");
+        log_e("Could not allocate PCM buffer");
 
         return -1;
     }
@@ -196,14 +197,14 @@ int audio_receive_frame(AudioContext *context, short *frame, int count,
     ret = snd_pcm_readi(context->pcm, frame, count);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not read PCM data\n");
+        log_e("Could not read PCM data");
       
         return -1;
     }
 
     if (ret != count)
     {
-        fprintf(stderr, "Read PCM data %d than %d\n", (int)ret, count);
+        log_w("Read PCM data %d than %d", (int)ret, count);
     }
 
     *received_count = ret;

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <ebur128.h>
+#include "log.h"
 #include "analyzer.h"
 
 
@@ -15,7 +16,7 @@ int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
     context->momentary = ebur128_init(channels, samplerate, EBUR128_MODE_M);
     if (!context->momentary)
     {
-        fprintf(stderr, "Could not initialize momentary loudness\n");
+        log_e("Could not initialize momentary loudness");
     
         return -1;
     }
@@ -23,7 +24,7 @@ int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
     context->shortterm = ebur128_init(channels, samplerate, EBUR128_MODE_S);
     if (!context->shortterm)
     {
-        fprintf(stderr, "Could not initialize shortterm loudness\n");
+        log_e("Could not initialize shortterm loudness");
     
         ebur128_destroy(&context->momentary);
 
@@ -33,7 +34,7 @@ int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
     context->integrated = ebur128_init(channels, samplerate, EBUR128_MODE_I);
     if (!context->integrated)
     {
-        fprintf(stderr, "Could not initialize shortterm loudness\n");
+        log_e("Could not initialize shortterm loudness");
     
         ebur128_destroy(&context->shortterm);
 
@@ -45,7 +46,7 @@ int analyzer_init(int samplerate, int channels, AnalyzerContext *context)
     ret = ebur128_set_max_history(context->integrated, 2 * 60 * 60 * 1000);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not set integrated loudness max history\n");
+        log_e("Could not set integrated loudness max history");
 
         ebur128_destroy(&context->integrated);
 
@@ -87,7 +88,7 @@ int analyzer_send_frame(AnalyzerContext *context, short *frame, int count)
     ret = ebur128_add_frames_short(context->momentary, frame, count);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not add momentary loudness frame\n");
+        log_e("Could not add momentary loudness frame");
     
         return -1;
     }
@@ -95,7 +96,7 @@ int analyzer_send_frame(AnalyzerContext *context, short *frame, int count)
     ret = ebur128_add_frames_short(context->shortterm, frame, count);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not add shortterm loudness frame\n");
+        log_e("Could not add shortterm loudness frame");
     
         return -1;
     }
@@ -103,7 +104,7 @@ int analyzer_send_frame(AnalyzerContext *context, short *frame, int count)
     ret = ebur128_add_frames_short(context->integrated, frame, count);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not add integrated loudness frame\n");
+        log_e("Could not add integrated loudness frame");
     
         return -1;
     }
@@ -125,7 +126,7 @@ int analyzer_get_loudness(AnalyzerContext *context, double *momentary,
     ret = ebur128_loudness_momentary(context->momentary, momentary);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not get momentary loudness\n");
+        log_e("Could not get momentary loudness");
     
         return -1;
     }
@@ -133,7 +134,7 @@ int analyzer_get_loudness(AnalyzerContext *context, double *momentary,
     ret = ebur128_loudness_shortterm(context->shortterm, shortterm);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not get shortterm loudness\n");
+        log_e("Could not get shortterm loudness");
     
         return -1;
     }
@@ -141,7 +142,7 @@ int analyzer_get_loudness(AnalyzerContext *context, double *momentary,
     ret = ebur128_loudness_global(context->integrated, integrated);
     if (ret != EBUR128_SUCCESS)
     {
-        fprintf(stderr, "Could not get integrated loudness\n");
+        log_e("Could not get integrated loudness");
     
         return -1;
     }

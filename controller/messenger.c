@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <libxml/xmlwriter.h>
 #include <libxml/xmlreader.h>
+#include "log.h"
 #include "messenger.h"
 
 
@@ -28,7 +29,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -36,7 +37,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterStartElement(writer, BAD_CAST("ack"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -45,7 +46,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -54,7 +55,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -62,7 +63,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -70,7 +71,7 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -91,7 +92,7 @@ static int generate_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -99,7 +100,7 @@ static int generate_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("loudness"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -108,7 +109,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -120,7 +121,7 @@ static int generate_loudness_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("card"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -129,7 +130,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                                 data[i].index);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -138,7 +139,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                                 "%2.1f", data[i].reference);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -147,7 +148,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                                 "%2.1f", data[i].momentary);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -156,7 +157,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                                 "%2.1f", data[i].shortterm);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -165,7 +166,7 @@ static int generate_loudness_xml(MessengerMessage *message,
                                                "%2.1f", data[i].integrated);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -173,7 +174,7 @@ static int generate_loudness_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -182,7 +183,7 @@ static int generate_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -190,7 +191,7 @@ static int generate_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -210,7 +211,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -218,7 +219,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterStartElement(writer, BAD_CAST("status"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -227,7 +228,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -239,7 +240,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
         ret = xmlTextWriterStartElement(writer, BAD_CAST("card"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -248,7 +249,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
                                                 data[i].index);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -257,7 +258,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
                                                 "%d", data[i].channel);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -267,7 +268,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
                                                 "true" : "false");
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -275,7 +276,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -284,7 +285,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -292,7 +293,7 @@ static int generate_status_xml(MessengerMessage *message, xmlTextWriter *writer)
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -313,7 +314,7 @@ static int generate_schedule_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -321,7 +322,7 @@ static int generate_schedule_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("schedule"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -330,7 +331,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -339,7 +340,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -351,7 +352,7 @@ static int generate_schedule_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("card"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -360,7 +361,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                                 data[i].index);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -369,7 +370,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                                 "%s", data[i].start);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -378,7 +379,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                                 "%s", data[i].end);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -387,7 +388,7 @@ static int generate_schedule_xml(MessengerMessage *message,
                                                 "%d", data[i].channel);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -395,7 +396,7 @@ static int generate_schedule_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -404,7 +405,7 @@ static int generate_schedule_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -412,7 +413,7 @@ static int generate_schedule_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -433,7 +434,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -441,7 +442,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("playback_list"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -450,7 +451,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -459,7 +460,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -471,7 +472,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("file"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -480,7 +481,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 data[i].name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -489,7 +490,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "%s", data[i].start);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -498,7 +499,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "%s", data[i].end);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -507,7 +508,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "%d", data[i].channel);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -517,7 +518,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 data[i].channel_name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -527,7 +528,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 data[i].program_name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -537,7 +538,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 data[i].program_start);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -546,7 +547,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "%s", data[i].program_end);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -555,7 +556,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "%2.1f", data[i].loudness);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -565,7 +566,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
                                                 "user" : "record");
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -573,7 +574,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -582,7 +583,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -590,7 +591,7 @@ static int generate_playback_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -611,7 +612,7 @@ static int generate_log_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -619,7 +620,7 @@ static int generate_log_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("log_list"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -628,7 +629,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -637,7 +638,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -649,7 +650,7 @@ static int generate_log_list_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("file"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -658,7 +659,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                                 data[i].name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -667,7 +668,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                                 "%s", data[i].start);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -676,7 +677,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                                 "%s", data[i].end);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -685,7 +686,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                                 "%d", data[i].channel);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -695,7 +696,7 @@ static int generate_log_list_xml(MessengerMessage *message,
                                                 data[i].channel_name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -703,7 +704,7 @@ static int generate_log_list_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -712,7 +713,7 @@ static int generate_log_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -720,7 +721,7 @@ static int generate_log_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -741,7 +742,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -749,7 +750,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("user_loudness"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -758,7 +759,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -767,7 +768,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -779,7 +780,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("file"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -788,7 +789,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                 data[i].name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -797,7 +798,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                 "%s", data[i].record_name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -809,7 +810,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
             ret = xmlTextWriterStartElement(writer, BAD_CAST("section"));
             if (ret < 0)
             {
-                fprintf(stderr, "Could not start xml element\n");
+                log_e("Could not start xml element");
 
                 return -1;
             }
@@ -818,7 +819,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                    "%s", section_data[j].start);
             if (ret < 0)
             {
-                fprintf(stderr, "Could not write xml attribute\n");
+                log_e("Could not write xml attribute");
 
                 return -1;
             }
@@ -827,7 +828,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                     "%s", section_data[j].end);
             if (ret < 0)
             {
-                fprintf(stderr, "Could not write xml attribute\n");
+                log_e("Could not write xml attribute");
 
                 return -1;
             }
@@ -838,7 +839,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                     section_data[j].loudness);
             if (ret < 0)
             {
-                fprintf(stderr, "Could not write xml attribute\n");
+                log_e("Could not write xml attribute");
 
                 return -1;
             }
@@ -849,7 +850,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
                                                     section_data[j].comment);
             if (ret < 0)
             {
-                fprintf(stderr, "Could not write xml attribute\n");
+                log_e("Could not write xml attribute");
 
                 return -1;
             }
@@ -857,7 +858,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
             ret = xmlTextWriterEndElement(writer);
             if (ret < 0)
             {
-                fprintf(stderr, "Could not end xml element\n");
+                log_e("Could not end xml element");
 
                 return -1;
             }
@@ -866,7 +867,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -875,7 +876,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -883,7 +884,7 @@ static int generate_user_loudness_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -904,7 +905,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml document\n");
+        log_e("Could not start xml document");
 
         return -1;
     }
@@ -912,7 +913,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
     ret = xmlTextWriterStartElement(writer, BAD_CAST("channel_list"));
     if (ret < 0)
     {
-        fprintf(stderr, "Could not start xml element\n");
+        log_e("Could not start xml element");
 
         return -1;
     }
@@ -921,7 +922,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
                                             message->ip);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -930,7 +931,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
                                             message->number);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write xml attribute\n");
+        log_e("Could not write xml attribute");
 
         return -1;
     }
@@ -942,7 +943,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
         ret = xmlTextWriterStartElement(writer, BAD_CAST("channel"));
         if (ret < 0)
         {
-            fprintf(stderr, "Could not start xml element\n");
+            log_e("Could not start xml element");
 
             return -1;
         }
@@ -951,7 +952,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
                                                 data[i].num);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -960,7 +961,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
                                                 data[i].name);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not write xml attribute\n");
+            log_e("Could not write xml attribute");
 
             return -1;
         }
@@ -968,7 +969,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not end xml element\n");
+            log_e("Could not end xml element");
 
             return -1;
         }
@@ -977,7 +978,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndElement(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml element\n");
+        log_e("Could not end xml element");
 
         return -1;
     }
@@ -985,7 +986,7 @@ static int generate_channel_list_xml(MessengerMessage *message,
     ret = xmlTextWriterEndDocument(writer);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not end xml document\n");
+        log_e("Could not end xml document");
 
         return -1;
     }
@@ -1006,7 +1007,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
     buf = xmlBufferCreate();
     if (!buf)
     {
-        fprintf(stderr, "Could not create xml buffer\n");
+        log_e("Could not create xml buffer");
 
         xmlCleanupParser();
 
@@ -1017,7 +1018,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
     writer = xmlNewTextWriterMemory(buf, 0);
     if (!writer)
     {
-        fprintf(stderr, "Could not get xml writer\n");
+        log_e("Could not get xml writer");
 
         xmlBufferFree(buf);
 
@@ -1032,7 +1033,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_ack_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate ack xml\n");
+                log_e("Could not generate ack xml");
             }
             break;
 
@@ -1040,7 +1041,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_loudness_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate loudness xml\n");
+                log_e("Could not generate loudness xml");
             }
             break;
 
@@ -1048,7 +1049,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_status_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate status xml\n");
+                log_e("Could not generate status xml");
             }
             break;
 
@@ -1056,7 +1057,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_schedule_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate schedule xml\n");
+                log_e("Could not generate schedule xml");
             }
             break;
 
@@ -1064,7 +1065,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_playback_list_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate playback list xml\n");
+                log_e("Could not generate playback list xml");
             }
             break;
 
@@ -1072,7 +1073,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_log_list_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate log list xml\n");
+                log_e("Could not generate log list xml");
             }
             break;
 
@@ -1080,7 +1081,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_user_loudness_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate user loudness xml\n");
+                log_e("Could not generate user loudness xml");
             }
             break;
 
@@ -1088,7 +1089,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = generate_channel_list_xml(message, writer);
             if (ret != 0)
             {
-                fprintf(stderr, "Could not generate channel list xml\n");
+                log_e("Could not generate channel list xml");
             }
             break;
 
@@ -1096,7 +1097,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             ret = -1;
             if (ret != 0)
             {
-                fprintf(stderr, "Unknown messenger message type\n");
+                log_e("Unknown messenger message type");
             }
             break;
     }
@@ -1115,7 +1116,7 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
     *buffer = (char *)malloc(buf->use);
     if (!*buffer)
     {
-        fprintf(stderr, "Could not allocate xml buffer\n");
+        log_e("Could not allocate xml buffer");
 
         xmlFreeTextWriter(writer);
 
@@ -1158,7 +1159,7 @@ static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1172,7 +1173,7 @@ static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1181,7 +1182,7 @@ static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1249,7 +1250,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1263,7 +1264,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1272,7 +1273,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1335,7 +1336,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -1356,7 +1357,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -1370,7 +1371,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("card")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -1391,7 +1392,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -1413,7 +1414,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -1436,7 +1437,7 @@ static int parse_stream_start_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -1478,7 +1479,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1492,7 +1493,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1501,7 +1502,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1564,7 +1565,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -1585,7 +1586,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -1599,7 +1600,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("card")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -1620,7 +1621,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -1642,7 +1643,7 @@ static int parse_stream_stop_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -1684,7 +1685,7 @@ static int parse_loudness_start_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1698,7 +1699,7 @@ static int parse_loudness_start_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1707,7 +1708,7 @@ static int parse_loudness_start_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1775,7 +1776,7 @@ static int parse_loudness_stop_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1789,7 +1790,7 @@ static int parse_loudness_stop_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1798,7 +1799,7 @@ static int parse_loudness_stop_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1866,7 +1867,7 @@ static int parse_status_start_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1880,7 +1881,7 @@ static int parse_status_start_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1889,7 +1890,7 @@ static int parse_status_start_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -1957,7 +1958,7 @@ static int parse_status_stop_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -1971,7 +1972,7 @@ static int parse_status_stop_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -1980,7 +1981,7 @@ static int parse_status_stop_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2048,7 +2049,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2062,7 +2063,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2071,7 +2072,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2134,7 +2135,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -2155,7 +2156,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -2169,7 +2170,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("card")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -2190,7 +2191,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -2212,7 +2213,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2235,7 +2236,7 @@ static int parse_channel_change_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2277,7 +2278,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2291,7 +2292,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2300,7 +2301,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2363,7 +2364,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -2384,7 +2385,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -2398,7 +2399,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("card")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -2419,7 +2420,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -2441,7 +2442,7 @@ static int parse_loudness_reset_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2483,7 +2484,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2497,7 +2498,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2506,7 +2507,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2569,7 +2570,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -2590,7 +2591,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -2604,7 +2605,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("card")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -2625,7 +2626,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -2647,7 +2648,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2671,7 +2672,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2695,7 +2696,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2718,7 +2719,7 @@ static int parse_schedule_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -2760,7 +2761,7 @@ static int parse_schedule_request_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2774,7 +2775,7 @@ static int parse_schedule_request_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2783,7 +2784,7 @@ static int parse_schedule_request_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2851,7 +2852,7 @@ static int parse_playback_list_request_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2865,7 +2866,7 @@ static int parse_playback_list_request_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2874,7 +2875,7 @@ static int parse_playback_list_request_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -2942,7 +2943,7 @@ static int parse_log_list_request_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -2956,7 +2957,7 @@ static int parse_log_list_request_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -2965,7 +2966,7 @@ static int parse_log_list_request_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -3033,7 +3034,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -3047,7 +3048,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -3056,7 +3057,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -3119,7 +3120,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -3140,7 +3141,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             for (int i = 0; i < message->count && message->data; i++)
             {
@@ -3164,7 +3165,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("file")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -3195,7 +3196,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             for (int i = 0; i < message->count && message->data; i++)
             {
@@ -3228,7 +3229,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -3262,7 +3263,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -3309,7 +3310,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
                     ret = xmlTextReaderRead(reader);
                     if (ret != 1)
                     {
-                        fprintf(stderr, "Could not read xml\n");
+                        log_e("Could not read xml");
 
                         break;
                     }
@@ -3330,7 +3331,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             str = xmlTextReaderName(reader);
             if (!str)
             {
-                fprintf(stderr, "Could not read xml element name\n");
+                log_e("Could not read xml element name");
 
                 for (int i = 0; i < message->count && message->data; i++)
                 {
@@ -3356,7 +3357,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
 
             if (xmlStrcmp(str, BAD_CAST("section")))
             {
-                fprintf(stderr, "Could not find xml element\n");
+                log_e("Could not find xml element");
 
                 xmlFree(BAD_CAST(str));
 
@@ -3392,7 +3393,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
                                                       size);
             if (!data[message->count].data)
             {
-                fprintf(stderr, "Could not reallocate data buffer\n");
+                log_e("Could not reallocate data buffer");
 
                 for (int i = 0; i < message->count && message->data; i++)
                 {
@@ -3429,7 +3430,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             }
             else
             {
-                fprintf(stderr, "Could not find xml attribute\n");
+                log_e("Could not find xml attribute");
 
                 xmlFree(BAD_CAST(str));
 
@@ -3466,7 +3467,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             }
             else
             {
-                fprintf(stderr, "Could not find xml attribute\n");
+                log_e("Could not find xml attribute");
 
                 xmlFree(BAD_CAST(str));
 
@@ -3502,7 +3503,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             }
             else
             {
-                fprintf(stderr, "Could not find xml attribute\n");
+                log_e("Could not find xml attribute");
 
                 xmlFree(BAD_CAST(str));
 
@@ -3539,7 +3540,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
             }
             else
             {
-                fprintf(stderr, "Could not find xml attribute\n");
+                log_e("Could not find xml attribute");
 
                 xmlFree(BAD_CAST(str));
 
@@ -3579,7 +3580,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -3593,7 +3594,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         }
         if (type != XML_READER_TYPE_END_ELEMENT)
         {
-            fprintf(stderr, "Wrong xml end element type\n");
+            log_e("Wrong xml end element type");
 
             for (int i = 0; i < message->count && message->data; i++)
             {
@@ -3618,7 +3619,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             for (int i = 0; i < message->count && message->data; i++)
             {
@@ -3642,7 +3643,7 @@ static int parse_user_loudness_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("file")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -3694,7 +3695,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -3708,7 +3709,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -3717,7 +3718,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -3780,7 +3781,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
                 ret = xmlTextReaderRead(reader);
                 if (ret != 1)
                 {
-                    fprintf(stderr, "Could not read xml\n");
+                    log_e("Could not read xml");
 
                     break;
                 }
@@ -3801,7 +3802,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
         str = xmlTextReaderName(reader);
         if (!str)
         {
-            fprintf(stderr, "Could not read xml element name\n");
+            log_e("Could not read xml element name");
 
             message->count = 0;
             if (message->data)
@@ -3815,7 +3816,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
 
         if (xmlStrcmp(str, BAD_CAST("file")))
         {
-            fprintf(stderr, "Could not find xml element\n");
+            log_e("Could not find xml element");
 
             xmlFree(BAD_CAST(str));
 
@@ -3836,7 +3837,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
         message->data = (void *)realloc(message->data, size);
         if (!message->data)
         {
-            fprintf(stderr, "Could not reallocate data buffer\n");
+            log_e("Could not reallocate data buffer");
 
             message->count = 0;
             if (message->data)
@@ -3859,7 +3860,7 @@ static int parse_user_loudness_request_xml(xmlTextReader *reader,
         }
         else
         {
-            fprintf(stderr, "Could not find xml attribute\n");
+            log_e("Could not find xml attribute");
 
             xmlFree(BAD_CAST(str));
 
@@ -3901,7 +3902,7 @@ static int parse_channel_list_request_xml(xmlTextReader *reader,
             ret = xmlTextReaderRead(reader);
             if (ret != 1)
             {
-                fprintf(stderr, "Could not read xml\n");
+                log_e("Could not read xml");
 
                 return -1;
             }
@@ -3915,7 +3916,7 @@ static int parse_channel_list_request_xml(xmlTextReader *reader,
     }
     if (type != XML_READER_TYPE_ELEMENT)
     {
-        fprintf(stderr, "Could not get xml element\n");
+        log_e("Could not get xml element");
 
         return -1;
     }
@@ -3924,7 +3925,7 @@ static int parse_channel_list_request_xml(xmlTextReader *reader,
     str = xmlTextReaderName(reader);
     if (!str)
     {
-        fprintf(stderr, "Could not read xml element name\n");
+        log_e("Could not read xml element name");
 
         return -1;
     }
@@ -3985,7 +3986,7 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     reader = xmlReaderForMemory(buffer, size, "", XML_ENCODING, 0);
     if (!reader)
     {
-        fprintf(stderr, "Could not get xml reader\n");
+        log_e("Could not get xml reader");
 
         xmlCleanupParser();
 
@@ -3995,7 +3996,7 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     ret = xmlTextReaderRead(reader);
     if (ret != 1)
     {
-        fprintf(stderr, "Could not read xml\n");
+        log_e("Could not read xml");
 
         xmlFreeTextReader(reader);
 
@@ -4094,7 +4095,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     context->fd = socket(AF_INET, SOCK_STREAM, 0);
     if (context->fd == -1)
     {
-        fprintf(stderr, "Could not open socket\n");
+        log_e("Could not open socket");
 
         return -1;
     }
@@ -4103,7 +4104,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     ret = fcntl(context->fd, F_SETFL, ret | O_NONBLOCK);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not set socket flag\n");
+        log_e("Could not set socket flag");
 
         close(context->fd);
 
@@ -4118,7 +4119,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     ret = bind(context->fd, (struct sockaddr *)&address, sizeof(address));
     if (ret == -1)
     {
-        fprintf(stderr, "Could not bind socket\n");
+        log_e("Could not bind socket");
 
         close(context->fd);
 
@@ -4128,7 +4129,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     ret = listen(context->fd, 1);
     if (ret == -1)
     {
-        fprintf(stderr, "Could not listen socket\n");
+        log_e("Could not listen socket");
 
         close(context->fd);
 
@@ -4138,7 +4139,7 @@ int messenger_init(int port, int buffer_size, MessengerContext *context)
     context->rx_buffer = (char *)malloc(sizeof(char) * buffer_size);
     if (!context->rx_buffer)
     {
-        fprintf(stderr, "Could not allocate messenger rx buffer\n");
+        log_e("Could not allocate messenger rx buffer");
 
         close(context->fd);
 
@@ -4191,7 +4192,7 @@ int messenger_send_message(MessengerContext *context, MessengerMessage *message)
         ret = generate_xml(message, &buffer, &size);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not generate xml\n");
+            log_e("Could not generate xml");
 
             return -1;
         }
@@ -4202,7 +4203,7 @@ int messenger_send_message(MessengerContext *context, MessengerMessage *message)
         {
             if (errno == EPIPE)
             {
-                fprintf(stderr, "Could not send message\n");
+                log_e("Could not send message");
 
                 close(context->client_fd);
 
@@ -4257,7 +4258,7 @@ int messenger_receive_message(MessengerContext *context,
                 {
 		            //pass
                 } else {
-                    fprintf(stderr, "Could not receive message\n");
+                    log_e("Could not receive message");
 
                     close(context->client_fd);
 
@@ -4266,7 +4267,7 @@ int messenger_receive_message(MessengerContext *context,
             }
             else if (ret == 0)
             {
-                fprintf(stderr, "Could not receive message\n");
+                log_e("Could not receive message");
 
                 close(context->client_fd);
 
@@ -4316,7 +4317,7 @@ int messenger_receive_message(MessengerContext *context,
         ret = parse_xml(ptr, len, message);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not parse xml\n");
+            log_e("Could not parse xml");
 
             context->rx_buffer_index -= (int)(next_ptr - context->rx_buffer);
             memcpy(context->rx_buffer, next_ptr, context->rx_buffer_index);
@@ -4334,7 +4335,7 @@ int messenger_receive_message(MessengerContext *context,
         ret = parse_xml(ptr, len, message);
         if (ret != 0)
         {
-            fprintf(stderr, "Could not parse xml\n");
+            log_e("Could not parse xml");
 
             context->rx_buffer_index = 0;
 

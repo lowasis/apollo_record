@@ -6,7 +6,7 @@ INCS =
 LIBS = -lavformat -lavcodec -lavutil -lswscale -lswresample -lebur128 -lasound \
        -lpthread
 OBJS = main.o video.o audio.o analyzer.o logger.o recorder.o streamer.o fifo.o \
-       ipc.o
+       ipc.o log.o
 TARGET = apollo_monitor
 ifeq ($(PREFIX),)
 	PREFIX = /usr/local

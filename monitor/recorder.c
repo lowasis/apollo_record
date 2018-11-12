@@ -5,6 +5,7 @@
 #include <libavutil/audio_fifo.h>
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
+#include "log.h"
 #include "recorder.h"
 
 
@@ -28,7 +29,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                          name);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not allocate output format context\n");
+        log_e("Could not allocate output format context");
 
         return -1;
     }
@@ -36,7 +37,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = avio_open(&context->format_context->pb, name, AVIO_FLAG_WRITE);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not open output file\n");
+        log_e("Could not open output file");
 
         avformat_free_context(context->format_context);
 
@@ -46,7 +47,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->video_stream = avformat_new_stream(context->format_context, NULL);
     if (!context->video_stream)
     {
-        fprintf(stderr, "Could not create video stream\n");
+        log_e("Could not create video stream");
 
         avio_close(context->format_context->pb);
 
@@ -59,7 +60,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     video_codec = avcodec_find_encoder(video_codec_id);
     if (!video_codec)
     {
-        fprintf(stderr, "Could not find video codec\n");
+        log_e("Could not find video codec");
 
         avio_close(context->format_context->pb);
 
@@ -71,7 +72,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->video_codec_context = avcodec_alloc_context3(video_codec);
     if (!context->video_codec_context)
     {
-        fprintf(stderr, "Could not allocate video codec context\n");
+        log_e("Could not allocate video codec context");
 
         avio_close(context->format_context->pb);
 
@@ -94,7 +95,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = avcodec_open2(context->video_codec_context, video_codec, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not open video codec\n");
+        log_e("Could not open video codec");
 
         avcodec_free_context(&context->video_codec_context);
 
@@ -110,7 +111,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                           context->video_codec_context);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not fill video stream parameters\n");
+        log_e("Could not fill video stream parameters");
 
         avcodec_free_context(&context->video_codec_context);
 
@@ -124,7 +125,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->video_frame = av_frame_alloc();
     if (!context->video_frame)
     {
-        fprintf(stderr, "Could not allocate video frame\n");
+        log_e("Could not allocate video frame");
 
         avcodec_free_context(&context->video_codec_context);
 
@@ -141,7 +142,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = av_frame_get_buffer(context->video_frame, 32);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not get video frame buffer\n");
+        log_e("Could not get video frame buffer");
 
         av_frame_free(&context->video_frame);
 
@@ -157,7 +158,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->video_packet = av_packet_alloc();
     if (!context->video_packet)
     {
-        fprintf(stderr, "Could not allocate video packet\n");
+        log_e("Could not allocate video packet");
 
         av_frame_free(&context->video_frame);
 
@@ -173,7 +174,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->audio_stream = avformat_new_stream(context->format_context, NULL);
     if (!context->audio_stream)
     {
-        fprintf(stderr, "Could not create audio stream\n");
+        log_e("Could not create audio stream");
 
         av_packet_free(&context->video_packet);
 
@@ -192,7 +193,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     audio_codec = avcodec_find_encoder(audio_codec_id);
     if (!audio_codec)
     {
-        fprintf(stderr, "Could not find audio codec\n");
+        log_e("Could not find audio codec");
 
         av_packet_free(&context->video_packet);
 
@@ -210,7 +211,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->audio_codec_context = avcodec_alloc_context3(audio_codec);
     if (!context->audio_codec_context)
     {
-        fprintf(stderr, "Could not allocate audio codec context\n");
+        log_e("Could not allocate audio codec context");
 
         av_packet_free(&context->video_packet);
 
@@ -238,7 +239,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = avcodec_open2(context->audio_codec_context, audio_codec, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not open audio codec\n");
+        log_e("Could not open audio codec");
 
         avcodec_free_context(&context->audio_codec_context);
 
@@ -260,7 +261,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                           context->audio_codec_context);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not fill audio stream parameters\n");
+        log_e("Could not fill audio stream parameters");
 
         avcodec_free_context(&context->audio_codec_context);
 
@@ -280,7 +281,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->audio_frame = av_frame_alloc();
     if (!context->audio_frame)
     {
-        fprintf(stderr, "Could not allocate audio frame\n");
+        log_e("Could not allocate audio frame");
 
         avcodec_free_context(&context->audio_codec_context);
 
@@ -306,7 +307,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = av_frame_get_buffer(context->audio_frame, 32);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not get audio frame buffer\n");
+        log_e("Could not get audio frame buffer");
 
         av_frame_free(&context->audio_frame);
 
@@ -328,7 +329,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->audio_packet = av_packet_alloc();
     if (!context->audio_packet)
     {
-        fprintf(stderr, "Could not allocate audio packet\n");
+        log_e("Could not allocate audio packet");
 
         av_frame_free(&context->audio_frame);
 
@@ -352,7 +353,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                               in_audio_samplerate);
     if (!context->audio_fifo)
     {
-        fprintf(stderr, "Could not allocate audio FIFO\n");
+        log_e("Could not allocate audio FIFO");
 
         av_packet_free(&context->audio_packet);
 
@@ -376,7 +377,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->audio_fifo_frame = av_frame_alloc();
     if (!context->audio_fifo_frame)
     {
-        fprintf(stderr, "Could not allocate audio FIFO frame\n");
+        log_e("Could not allocate audio FIFO frame");
 
         av_audio_fifo_free(context->audio_fifo);
 
@@ -408,7 +409,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = av_frame_get_buffer(context->audio_fifo_frame, 32);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not get audio FIFO frame buffer\n");
+        log_e("Could not get audio FIFO frame buffer");
 
         av_frame_free(&context->audio_fifo_frame);
 
@@ -440,7 +441,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                           SWS_BILINEAR, NULL, NULL, NULL);
     if (!context->sws_context)
     {
-        fprintf(stderr, "Could not get SW scaler context\n");
+        log_e("Could not get SW scaler context");
 
         av_frame_free(&context->audio_fifo_frame);
 
@@ -475,7 +476,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
                                     NULL);
     if (!context->swr_context)
     {
-        fprintf(stderr, "Could not get SW resampler context\n");
+        log_e("Could not get SW resampler context");
 
         sws_freeContext(context->sws_context);
 
@@ -505,7 +506,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = swr_init(context->swr_context);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not initialize SW resampler\n");
+        log_e("Could not initialize SW resampler");
 
         swr_free(&context->swr_context);
 
@@ -542,7 +543,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     ret = avformat_write_header(context->format_context, NULL);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not write output file header\n");
+        log_e("Could not write output file header");
 
         swr_free(&context->swr_context);
 
@@ -631,7 +632,7 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
                     context->video_frame->linesize);
     if (ret <= 0)
     {
-        fprintf(stderr, "Could not scale video frame\n");
+        log_e("Could not scale video frame");
 
         return -1;
     }
@@ -643,7 +644,7 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
                              context->video_frame);
     if (ret < 0)
     {
-        fprintf(stderr, "Could not send avcodec video frame\n");
+        log_e("Could not send avcodec video frame");
 
         return -1;
     }
@@ -658,7 +659,7 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
         }
         else if (ret < 0)
         {
-            fprintf(stderr, "Could not receive avcodec video packet\n");
+            log_e("Could not receive avcodec video packet");
 
             return -1;
         }
@@ -668,15 +669,15 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
                              context->video_stream->time_base);
         context->video_packet->stream_index = context->video_stream->index;
 
-        /*printf("encoded video frame %3"PRId64" (size=%5d)\n",
-               context->video_packet->pts, context->video_packet->size);*/
+        log_d("encoded video frame %3"PRId64" (size=%5d)",
+              context->video_packet->pts, context->video_packet->size);
 
         int ret2;
         ret2 = av_interleaved_write_frame(context->format_context,
                                           context->video_packet);
         if (ret2 < 0)
         {
-            fprintf(stderr, "Could not write video packet\n");
+            log_e("Could not write video packet");
 
             return -1;
         }
@@ -701,7 +702,7 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
     ret = av_audio_fifo_write(context->audio_fifo, &frame, count);
     if (ret < count)
     {
-        fprintf(stderr, "Could not write audio FIFO frame\n");
+        log_e("Could not write audio FIFO frame");
 
         return -1;
     }
@@ -714,7 +715,7 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
                                  context->audio_fifo_frame->nb_samples);
         if (ret < context->audio_fifo_frame->nb_samples)
         {
-            fprintf(stderr, "Could not read audio FIFO frame\n");
+            log_e("Could not read audio FIFO frame");
 
             return -1;
         }
@@ -725,7 +726,7 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
                           context->audio_fifo_frame->nb_samples);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not convert audio frame\n");
+            log_e("Could not convert audio frame");
 
             return -1;
         }
@@ -737,7 +738,7 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
                                  context->audio_frame);
         if (ret < 0)
         {
-            fprintf(stderr, "Could not send avcodec audio frame\n");
+            log_e("Could not send avcodec audio frame");
 
             return -1;
         }
@@ -752,7 +753,7 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
             }
             else if (ret < 0)
             {
-                fprintf(stderr, "Could not receive avcodec audio packet\n");
+                log_e("Could not receive avcodec audio packet");
 
                 return -1;
             }
@@ -762,15 +763,15 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
                                  context->audio_stream->time_base);
             context->audio_packet->stream_index = context->audio_stream->index;
 
-            /*printf("encoded audio frame %3"PRId64" (size=%5d)\n",
-                   context->audio_packet->pts, context->audio_packet->size);*/
+            log_d("encoded audio frame %3"PRId64" (size=%5d)",
+                  context->audio_packet->pts, context->audio_packet->size);
 
             int ret2;
             ret2 = av_interleaved_write_frame(context->format_context,
                                               context->audio_packet);
             if (ret2 < 0)
             {
-                fprintf(stderr, "Could not write audio packet\n");
+                log_e("Could not write audio packet");
 
                 return -1;
             }

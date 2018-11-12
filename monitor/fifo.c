@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include "log.h"
 #include "fifo.h"
 
 
@@ -19,7 +20,7 @@ int fifo_init(char *name, FifoContext *context)
     ret = mkfifo(name, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (ret < 0 && errno != EEXIST)
     {
-        fprintf(stderr, "Could not make FIFO\n");
+        log_e("Could not make FIFO");
 
         return -1;
     }
@@ -27,7 +28,7 @@ int fifo_init(char *name, FifoContext *context)
     context->fd = open(name, O_RDONLY | O_NONBLOCK);
     if (context->fd < 0)
     {
-        fprintf(stderr, "Could not open FIFO\n");
+        log_e("Could not open FIFO");
 
         remove(context->name);
 
@@ -63,7 +64,7 @@ int fifo_alloc_buffer(FifoContext *context, int size, char **buffer)
     *buffer = (char *)malloc(sizeof(char) * size);
     if (!*buffer)
     {
-        fprintf(stderr, "Could not allocate FIFO buffer\n");
+        log_e("Could not allocate FIFO buffer");
 
         return -1;
     }

@@ -5,6 +5,9 @@
 extern "C" {
 #endif
 
+#define DEFAULT_LOG_OUTPUT          "syslog"
+#define DEFAULT_LOG_LEVEL           (LOG_LEVEL_INFO)
+
 #define VIDEO_WIDTH                 (720)
 #define VIDEO_HEIGHT                (480)
 
