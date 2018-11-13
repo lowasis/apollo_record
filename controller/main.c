@@ -3078,24 +3078,47 @@ int main(int argc, char **argv)
                         break;
                     }
 
+                    int j = 0;
                     for (int i = 0; i < count; i++)
                     {
-                        strncpy(data[i].name, list[i].name,
-                                sizeof(data[i].name));
-                        strncpy(data[i].start, list[i].start,
-                                sizeof(data[i].start));
-                        strncpy(data[i].end, list[i].end, sizeof(data[i].end));
-                        data[i].channel = list[i].channel;
-                        strncpy(data[i].channel_name, list[i].channel_name,
-                                sizeof(data[i].channel_name));
-                        strncpy(data[i].program_name, list[i].program_name,
-                                sizeof(data[i].program_name));
-                        strncpy(data[i].program_start, list[i].program_start,
-                                sizeof(data[i].program_start));
-                        strncpy(data[i].program_end, list[i].program_end,
-                                sizeof(data[i].program_end));
-                        data[i].loudness = list[i].loudness;
-                        data[i].type = list[i].type;
+                        int skip_flag = 0;
+
+#if 0
+                        for (int k = 0; k < ipc_socket_name_count; k++)
+                        {
+                            if (strlen(status[k].av_record_name) &&
+                                !strncmp(list[i].name, status[k].av_record_name,
+                                strlen(status[k].av_record_name)))
+                            {
+                                skip_flag = 1;
+                                break;
+                            }
+                        }
+#endif
+
+                        if (!skip_flag)
+                        {
+                            strncpy(data[j].name, list[i].name,
+                                    sizeof(data[j].name));
+                            strncpy(data[j].start, list[i].start,
+                                    sizeof(data[j].start));
+                            strncpy(data[j].end, list[i].end,
+                                    sizeof(data[j].end));
+                            data[j].channel = list[i].channel;
+                            strncpy(data[j].channel_name, list[i].channel_name,
+                                    sizeof(data[j].channel_name));
+                            strncpy(data[j].program_name, list[i].program_name,
+                                    sizeof(data[j].program_name));
+                            strncpy(data[j].program_start,
+                                    list[i].program_start,
+                                    sizeof(data[j].program_start));
+                            strncpy(data[j].program_end, list[i].program_end,
+                                    sizeof(data[j].program_end));
+                            data[j].loudness = list[i].loudness;
+                            data[j].type = list[i].type;
+
+                            j++;
+                        }
                     }
 
                     if (list)
@@ -3109,7 +3132,7 @@ int main(int argc, char **argv)
                     strncpy(messenger_message.ip, my_ip,
                             sizeof(messenger_message.ip));
                     messenger_message.number = messenger_recv_message.number;
-                    messenger_message.count = count;
+                    messenger_message.count = j;
                     messenger_message.data = (void *)data;
                     ret = messenger_send_message(&messenger_context,
                                                  &messenger_message);
@@ -3154,17 +3177,39 @@ int main(int argc, char **argv)
                         break;
                     }
 
+                    int j = 0;
                     for (int i = 0; i < count; i++)
                     {
-                        strncpy(data[i].name, list[i].name,
-                                sizeof(data[i].name));
-                        strncpy(data[i].start, list[i].start,
-                                sizeof(data[i].start));
-                        strncpy(data[i].end, list[i].end,
-                                sizeof(data[i].end));
-                        data[i].channel = list[i].channel;
-                        strncpy(data[i].channel_name, list[i].channel_name,
-                                sizeof(data[i].channel_name));
+                        int skip_flag = 0;
+
+#if 0
+                        for (int k = 0; k < ipc_socket_name_count; k++)
+                        {
+                            if (strlen(status[k].loudness_log_name) &&
+                                !strncmp(list[i].name,
+                                status[k].loudness_log_name,
+                                strlen(status[k].loudness_log_name)))
+                            {
+                                skip_flag = 1;
+                                break;
+                            }
+                        }
+#endif
+
+                        if (!skip_flag)
+                        {
+                            strncpy(data[j].name, list[i].name,
+                                    sizeof(data[j].name));
+                            strncpy(data[j].start, list[i].start,
+                                    sizeof(data[j].start));
+                            strncpy(data[j].end, list[i].end,
+                                    sizeof(data[j].end));
+                            data[j].channel = list[i].channel;
+                            strncpy(data[j].channel_name, list[i].channel_name,
+                                    sizeof(data[j].channel_name));
+
+                            j++;
+                        }
                     }
 
                     if (list)
@@ -3177,7 +3222,7 @@ int main(int argc, char **argv)
                     strncpy(messenger_message.ip, my_ip,
                             sizeof(messenger_message.ip));
                     messenger_message.number = messenger_recv_message.number;
-                    messenger_message.count = count;
+                    messenger_message.count = j;
                     messenger_message.data = (void *)data;
                     ret = messenger_send_message(&messenger_context,
                                                  &messenger_message);
