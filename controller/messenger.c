@@ -4197,30 +4197,43 @@ int messenger_send_message(MessengerContext *context, MessengerMessage *message)
             return -1;
         }
 
-        ret = send(context->client_fd, buffer, size,
-                   MSG_NOSIGNAL | MSG_DONTWAIT);
-        if (ret == -1)
+        for (int i = 0; i < size;)
         {
-            if (errno == EPIPE)
+            ret = send(context->client_fd, &buffer[i], size - i,
+                       MSG_NOSIGNAL | MSG_DONTWAIT);
+            if (ret == -1)
             {
-                log_e("Could not send message");
+                if (errno == EPIPE)
+                {
+                    log_e("Could not send message");
 
-                close(context->client_fd);
+                    close(context->client_fd);
 
-                context->client_fd = -1;
+                    context->client_fd = -1;
+
+                    free(buffer);
+
+                    return -1;
+                }
+
+                log_w("Send error");
+
+                usleep(10 * 1000);
+
+                continue;
             }
 
-            free(buffer);
+            if (ret != (size - i))
+            {
+                log_w("Send message %d than %d", (int)ret, size - i);
 
-            return -1;
+                usleep(10 * 1000);
+            }
+
+            i += ret;
         }
 
         free(buffer);
-
-        if (ret != size)
-        {
-            return -1;
-        }
     }
     else
     {
