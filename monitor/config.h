@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#define DEFAULT_LOUDNESS_OFFSET     (+0.0)
+
 #define DEFAULT_LOG_OUTPUT          "syslog"
 #define DEFAULT_LOG_LEVEL           (LOG_LEVEL_INFO)
 

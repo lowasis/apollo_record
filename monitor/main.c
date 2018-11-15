@@ -51,19 +51,20 @@ static void print_usage(char *name)
            "-a | --audio name     Input audio device name (ex : hw:1,0)\n"
            "-f | --fifo name      AV FIFO name\n"
            "-s | --socket name    IPC socket name\n"
+           "-t | --offset number  Loudness offset (def : %.1f)\n"
            "-o | --logout name    Log output (syslog, stdout, def : %s)\n"
            "-d | --loglvl number  Log level (%d ~ %d, def : %d)\n"
-           "", name, DEFAULT_LOG_OUTPUT, LOG_LEVEL_MIN, LOG_LEVEL_MAX,
-           DEFAULT_LOG_LEVEL);
+           "", name, DEFAULT_LOUDNESS_OFFSET, DEFAULT_LOG_OUTPUT, LOG_LEVEL_MIN,
+           LOG_LEVEL_MAX, DEFAULT_LOG_LEVEL);
 }
 
 static int get_option(int argc, char **argv, char **video_device_name,
                       char **audio_device_name, char **av_fifo_name,
-                      char **ipc_socket_name, char **log_output,
-                      LogLevel *log_level)
+                      char **ipc_socket_name, double *loudness_offset,
+                      char **log_output, LogLevel *log_level)
 {
     if (!argv || !video_device_name || !audio_device_name || !av_fifo_name ||
-        !ipc_socket_name || !log_output || !log_level)
+        !ipc_socket_name || !loudness_offset || !log_output || !log_level)
     {
         return -1;
     }
@@ -75,13 +76,14 @@ static int get_option(int argc, char **argv, char **video_device_name,
 
     while (1)
     {
-        const char short_options[] = "hv:a:f:s:o:d:";
+        const char short_options[] = "hv:a:f:s:t:o:d:";
         const struct option long_options[] = {
             {"help", no_argument, NULL, 'h'},
             {"video", required_argument, NULL, 'v'},
             {"audio", required_argument, NULL, 'a'},
             {"fifo", required_argument, NULL, 'f'},
             {"socket", required_argument, NULL, 's'},
+            {"offset", required_argument, NULL, 't'},
             {"logout", required_argument, NULL, 'o'},
             {"loglvl", required_argument, NULL, 'd'},
             {0, 0, 0, 0}
@@ -116,6 +118,10 @@ static int get_option(int argc, char **argv, char **video_device_name,
 
             case 's':
                 *ipc_socket_name = optarg;
+                break;
+
+            case 't':
+                *loudness_offset = strtod(optarg, NULL);
                 break;
 
             case 'o':
@@ -501,10 +507,12 @@ int main(int argc, char **argv)
     char *audio_device_name = NULL;
     char *av_fifo_name = NULL;
     char *ipc_socket_name = NULL;
+    double loudness_offset = DEFAULT_LOUDNESS_OFFSET;
     char *log_output = DEFAULT_LOG_OUTPUT;
     LogLevel log_level = DEFAULT_LOG_LEVEL;
     ret = get_option(argc, argv, &video_device_name, &audio_device_name,
-                     &av_fifo_name, &ipc_socket_name, &log_output, &log_level);
+                     &av_fifo_name, &ipc_socket_name, &loudness_offset,
+                     &log_output, &log_level);
     if (ret != 0)
     {
         print_usage(argv[0]);
@@ -881,6 +889,10 @@ int main(int argc, char **argv)
                         }
                         else
                         {
+                            momentary += loudness_offset;
+                            shortterm += loudness_offset;
+                            integrated += loudness_offset;
+
                             IpcMessage ipc_message_2;
                             ipc_message_2.command =
                                         IPC_COMMAND_AV_RECORD_LOUDNESS_DATA;
@@ -982,6 +994,10 @@ int main(int argc, char **argv)
                     }
                     else
                     {
+                        momentary += loudness_offset;
+                        shortterm += loudness_offset;
+                        integrated += loudness_offset;
+
                         ipc_message.command =
                                         IPC_COMMAND_AV_RECORD_LOUDNESS_DATA;
                         snprintf(ipc_message.arg, sizeof(ipc_message.arg),
@@ -1068,6 +1084,10 @@ int main(int argc, char **argv)
                 }
                 else
                 {
+                    momentary += loudness_offset;
+                    shortterm += loudness_offset;
+                    integrated += loudness_offset;
+
                     ipc_message.command = IPC_COMMAND_LOUDNESS_DATA;
                     snprintf(ipc_message.arg, sizeof(ipc_message.arg),
                              "%2.1f %2.1f %2.1f", momentary, shortterm,
@@ -1105,6 +1125,10 @@ int main(int argc, char **argv)
                     }
                     else
                     {
+                        momentary += loudness_offset;
+                        shortterm += loudness_offset;
+                        integrated += loudness_offset;
+
                         uint64_t uptime;
                         uptime = (get_usec() - loudness_log_start_usec) / 1000;
 
