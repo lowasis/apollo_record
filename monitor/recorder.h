@@ -30,6 +30,7 @@ typedef struct RecorderContext {
     int in_video_height;
     int64_t video_pts;
     int64_t audio_pts;
+    int64_t audio_pts_offset;
 } RecorderContext;
 
 int recorder_init(char *name, int in_video_width, int in_video_height,

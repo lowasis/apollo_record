@@ -539,6 +539,7 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     context->in_video_height = in_video_height;
     context->video_pts = 0;
     context->audio_pts = 0;
+    context->audio_pts_offset = 0;
 
     ret = avformat_write_header(context->format_context, NULL);
     if (ret < 0)
@@ -731,8 +732,21 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
             return -1;
         }
 
-        context->audio_frame->pts = context->audio_pts;
-        context->audio_pts += context->audio_frame->nb_samples;
+        int64_t pts = context->video_pts *
+                      context->audio_codec_context->sample_rate *
+                      context->video_codec_context->time_base.num /
+                      context->video_codec_context->time_base.den;
+        if (pts == context->audio_pts)
+        {
+            context->audio_pts_offset++;
+            context->audio_frame->pts = pts + context->audio_pts_offset;
+        }
+        else
+        {
+            context->audio_frame->pts = pts;
+            context->audio_pts = pts;
+            context->audio_pts_offset = 0;
+        }
 
         ret = avcodec_send_frame(context->audio_codec_context,
                                  context->audio_frame);
