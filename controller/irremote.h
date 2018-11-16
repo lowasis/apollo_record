@@ -7,7 +7,8 @@ extern "C" {
 
 typedef enum {
     IRREMOTE_MODEL_SKB_BTV = 0,
-    IRREMOTE_MODEL_KT_OLLEHTV
+    IRREMOTE_MODEL_KT_OLLEHTV,
+    IRREMOTE_MODEL_DLIVE,
 } IrRemoteModel;
 
 typedef enum {
