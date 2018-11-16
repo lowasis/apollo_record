@@ -315,7 +315,7 @@ static int get_my_ip(char *buffer)
         ip = inet_ntoa(sin->sin_addr);
         if (strncmp(ip, "127.0.0.1", strlen("127.0.0.1")))
         {
-            strncpy(buffer, ip, strlen(ip));
+            strncpy(buffer, ip, strlen(ip) + 1);
 
             break;
         }
