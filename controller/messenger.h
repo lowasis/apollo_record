@@ -86,6 +86,7 @@ typedef struct MessengerPlaybackListData {
     char program_start[24];
     char program_end[24];
     double loudness;
+    double loudness_offset;
     int type;
 } MessengerPlaybackListData;
 

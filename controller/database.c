@@ -203,6 +203,10 @@ static int get_playback_list_data_callback(void *arg, int argc, char **argv,
             {
                 data[*i].loudness = strtod(argv[j], NULL);
             }
+            else if (strcmp(col[j], "LOUDNESS_OFFSET") == 0)
+            {
+                data[*i].loudness_offset = strtod(argv[j], NULL);
+            }
             else if (strcmp(col[j], "TYPE") == 0)
             {
                 data[*i].type = strtol(argv[j], NULL, 10);
@@ -407,17 +411,18 @@ int database_init(char *name, DatabaseContext *context)
     DatabasePlaybackListData p;
     snprintf(query, sizeof(query),
              "CREATE TABLE IF NOT EXISTS PLAYBACK_LIST("
-             "ID            INTEGER PRIMARY KEY AUTOINCREMENT, "
-             "NAME          CHAR(%ld) NOT NULL, "
-             "START         CHAR(%ld) NOT NULL, "
-             "END           CHAR(%ld) NOT NULL, "
-             "CHANNEL       INTEGER NOT NULL, "
-             "CHANNEL_NAME  CHAR(%ld) NOT NULL, "
-             "PROGRAM_NAME  CHAR(%ld) NOT NULL, "
-             "PROGRAM_START CHAR(%ld) NOT NULL, "
-             "PROGRAM_END   CHAR(%ld) NOT NULL, "
-             "LOUDNESS      REAL NOT NULL, "
-             "TYPE          INTEGER NOT NULL);",
+             "ID                INTEGER PRIMARY KEY AUTOINCREMENT, "
+             "NAME              CHAR(%ld) NOT NULL, "
+             "START             CHAR(%ld) NOT NULL, "
+             "END               CHAR(%ld) NOT NULL, "
+             "CHANNEL           INTEGER NOT NULL, "
+             "CHANNEL_NAME      CHAR(%ld) NOT NULL, "
+             "PROGRAM_NAME      CHAR(%ld) NOT NULL, "
+             "PROGRAM_START     CHAR(%ld) NOT NULL, "
+             "PROGRAM_END       CHAR(%ld) NOT NULL, "
+             "LOUDNESS          REAL NOT NULL, "
+             "LOUDNESS_OFFSET   REAL NOT NULL, "
+             "TYPE              INTEGER NOT NULL);",
              sizeof(p.name), sizeof(p.start), sizeof(p.end),
              sizeof(p.channel_name), sizeof(p.program_name),
              sizeof(p.program_start), sizeof(p.program_end));
@@ -713,14 +718,14 @@ int database_set_playback_list_data(DatabaseContext *context,
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO PLAYBACK_LIST "
                  "(ID, NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
-                 "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE) VALUES "
-                 "((SELECT ID FROM PLAYBACK_LIST WHERE NAME = \"%s\"), "
+                 "PROGRAM_START, PROGRAM_END, LOUDNESS, LOUDNESS_OFFSET, TYPE) "
+                 "VALUES ((SELECT ID FROM PLAYBACK_LIST WHERE NAME = \"%s\"), "
                  "\"%s\", \"%s\", \"%s\", %d, \"%s\", \"%s\", \"%s\", \"%s\", "
-                 "%f, %d);",
+                 "%f, %f, %d);",
                  data[i].name, data[i].name, data[i].start, data[i].end,
                  data[i].channel, data[i].channel_name, data[i].program_name,
                  data[i].program_start, data[i].program_end, data[i].loudness,
-                 data[i].type);
+                 data[i].loudness_offset, data[i].type);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -747,7 +752,8 @@ int database_get_playback_list_data(DatabaseContext *context,
     char query[512];
     snprintf(query, sizeof(query),
              "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
-             "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE FROM PLAYBACK_LIST;");
+             "PROGRAM_START, PROGRAM_END, LOUDNESS, LOUDNESS_OFFSET, TYPE "
+             "FROM PLAYBACK_LIST;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};
@@ -776,7 +782,8 @@ int database_get_playback_list_data_one(DatabaseContext *context, char *name,
     char query[512];
     snprintf(query, sizeof(query),
              "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME, PROGRAM_NAME, "
-             "PROGRAM_START, PROGRAM_END, LOUDNESS, TYPE FROM PLAYBACK_LIST "
+             "PROGRAM_START, PROGRAM_END, LOUDNESS, LOUDNESS_OFFSET, TYPE "
+             "FROM PLAYBACK_LIST "
              "WHERE NAME = \"%s\";", name);
 
     int count = 1;

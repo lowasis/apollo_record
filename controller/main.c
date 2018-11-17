@@ -29,6 +29,7 @@ typedef struct Loudness {
     double momentary;
     double shortterm;
     double integrated;
+    double offset;
 } Loudness;
 
 typedef struct Status {
@@ -56,6 +57,7 @@ typedef struct PlaybackList {
     char program_start[24];
     char program_end[24];
     double loudness;
+    double loudness_offset;
     int type;
 } PlaybackList;
 
@@ -716,7 +718,8 @@ static int loudness_log_end(IpcContext *context, int index)
 }
 
 static int av_record_start(IpcContext *context, int index, int channel,
-                           char *channel_name, char *path, PlaybackList *list)
+                           char *channel_name, char *path,
+                           double loudness_offset, PlaybackList *list)
 {
     int ret;
 
@@ -751,6 +754,7 @@ static int av_record_start(IpcContext *context, int index, int channel,
     list->program_start[0] = 0;
     list->program_end[0] = 0;
     list->loudness = 0.;
+    list->loudness_offset = loudness_offset;
     list->type = 0;
 
     return 0;
@@ -1043,6 +1047,7 @@ static int save_playback_list_data(DatabaseContext *context,
         strncpy(data[i].program_end, list[i].program_end,
                 sizeof(data[i].program_end));
         data[i].loudness = list[i].loudness;
+        data[i].loudness_offset = list[i].loudness_offset;
         data[i].type = list[i].type;
     }
 
@@ -1120,6 +1125,7 @@ static int load_playback_list_data(DatabaseContext *context,
         strncpy(new_list[i].program_end, data[i].program_end,
                 sizeof(data[i].program_end));
         new_list[i].loudness = data[i].loudness;
+        new_list[i].loudness_offset = data[i].loudness_offset;
         new_list[i].type = data[i].type;
     }
 
@@ -1854,9 +1860,10 @@ static void *command_func_loudness_print(void *context, int index, void **arg)
 {
     Loudness *loudness = (Loudness *)context;
 
-    log_i("Reference %2.1f, Momentary %2.1f, Shortterm %2.1f, Integrated %2.1f",
-           loudness[index].reference, loudness[index].momentary,
-           loudness[index].shortterm, loudness[index].integrated);
+    log_i("Reference %2.1f, Momentary %2.1f, Shortterm %2.1f, "
+          "Integrated %2.1f, Offset %2.1f", loudness[index].reference,
+           loudness[index].momentary, loudness[index].shortterm,
+           loudness[index].integrated, loudness[index].offset);
 }
 
 static void *command_func_schedule_add(void *context, int index, void **arg)
@@ -2580,11 +2587,19 @@ int main(int argc, char **argv)
                             log_i("Null integrated loudness data");
                             break;
                         }
+                        char *offset;
+                        offset = strtok(NULL, " ");
+                        if (!offset || strlen(offset) == 0)
+                        {
+                            log_i("Null loudness offset data");
+                            break;
+                        }
 
                         loudness[i].reference = -24.;
                         loudness[i].momentary = strtod(momentary, NULL);
                         loudness[i].shortterm = strtod(shortterm, NULL);
                         loudness[i].integrated = strtod(integrated, NULL);
+                        loudness[i].offset = strtod(offset, NULL);
                         break;
                     }
 
@@ -3115,6 +3130,7 @@ int main(int argc, char **argv)
                             strncpy(data[j].program_end, list[i].program_end,
                                     sizeof(data[j].program_end));
                             data[j].loudness = list[i].loudness;
+                            data[j].loudness_offset = list[i].loudness_offset;
                             data[j].type = list[i].type;
 
                             j++;
@@ -3823,7 +3839,7 @@ int main(int argc, char **argv)
                     PlaybackList playback_list;
                     ret = av_record_start(ipc_context, i, ret_schedule->channel,
                                           channel_name, av_record_path,
-                                          &playback_list);
+                                          loudness[i].offset, &playback_list);
                     if (ret == 0)
                     {
                         log_i("%d, AV record start", i);
@@ -4030,8 +4046,9 @@ int main(int argc, char **argv)
                         PlaybackList playback_list;
                         ret = av_record_start(ipc_context, i,
                                               current_schedule[i].channel,
-                                              channel_name,
-                                              av_record_path, &playback_list);
+                                              channel_name, av_record_path,
+                                              loudness[i].offset,
+                                              &playback_list);
                         if (ret == 0)
                         {
                             log_i("%d, AV record start", i);

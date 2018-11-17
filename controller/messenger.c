@@ -561,6 +561,17 @@ static int generate_playback_list_xml(MessengerMessage *message,
             return -1;
         }
 
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("loudness_offset"),
+                                                "%2.1f",
+                                                data[i].loudness_offset);
+        if (ret < 0)
+        {
+            log_e("Could not write xml attribute");
+
+            return -1;
+        }
+
         ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("type"),
                                                 "%s", data[i].type ?
                                                 "user" : "record");
