@@ -1090,8 +1090,8 @@ int main(int argc, char **argv)
 
                     ipc_message.command = IPC_COMMAND_LOUDNESS_DATA;
                     snprintf(ipc_message.arg, sizeof(ipc_message.arg),
-                             "%2.1f %2.1f %2.1f", momentary, shortterm,
-                             integrated);
+                             "%2.1f %2.1f %2.1f %2.1f", momentary, shortterm,
+                             integrated, loudness_offset);
                     ret = ipc_send_message(&ipc_context, &ipc_message);
                     if (ret == 0)
                     {
