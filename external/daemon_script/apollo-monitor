@@ -1,12 +1,11 @@
 #!/bin/bash
 ### BEGIN INIT INFO
 # Provides: apollo-monitor
-# Required-Start:   $network $remote_fs $syslog
-# Required-Stop:    $network $remote_fs $syslog
+# Required-Start:   $remote_fs $syslog $time apollo-lircd
+# Required-Stop:    $remote_fs $syslog
 # Default-Start:    2 3 4 5
 # Default-Stop:     0 1 6
 # Short-Description: APOLLO-Monitor
-# X-Start-Before: apollo-controller
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -15,16 +14,17 @@ DAEMON=/usr/local/bin/apollo_monitor
 DESC="Apollo Monitor Process"
 USERID=root
 PIDDIR="/usr/local/var/run/apollo"
+OFFSET=( "+0.0" "+0.0" "+0.0" "+0.0" "+0.0" )
 
 . /lib/lsb/init-functions
 
 do_start()
 {
     exitval=0
-    OPTIONS="-v /dev/video$1 -a hw:`expr $1 + 1`,0 -f /usr/local/var/run/apollo/apollo_record$1.ts -s /usr/local/var/run/apollo/apollo_record$1.socket &"
+    OPTIONS="-v /dev/video$1 -a hw:$1,0 -f /usr/local/var/run/apollo/apollo_record$1.ts -s /usr/local/var/run/apollo/apollo_record$1.socket -t ${OFFSET[$1]}"
 
     if pidofproc -p  $PIDDIR/$NAME$1.pid $DAEMON  > /dev/null; then
-        log_progress_msg "$DESC $1 is already running"
+        log_daemon_msg "$DESC $1 is already running"
     else
         log_daemon_msg "Starting $DESC $1"
         start-stop-daemon --start --quiet --oknodo --pidfile "$PIDDIR/$NAME$1".pid \
@@ -44,17 +44,28 @@ do_stop()
     log_progress_msg $NAME$1
 
     if pidofproc -p  $PIDDIR/$NAME$1.pid $DAEMON  > /dev/null; then
-        log_progress_msg "Stopping $DESC $1"
-        start-stop-daemon --stop --verbose --oknodo --pidfile "$PIDDIR/$NAME$1".pid \
+        log_daemon_msg "Stopping $DESC $1"
+        start-stop-daemon --stop --quiet --verbose --oknodo --pidfile "$PIDDIR/$NAME$1".pid \
             --exec $DAEMON
 
         exitval=$?
     else
-        log_progress_msg "$DESC $1 is not running"
+        log_daemon_msg "$DESC $1 is not running"
     fi
 
+    sudo rm -f "$PIDDIR/$NAME$1".pid
+
     exitval=$?
-    log_end_msg $exitval
+    log_end_msg $efxitval
+}
+
+check_status()
+{
+    if status_of_proc -p  "$PIDDIR/$NAME$1".pid $DAEMON > /dev/null; then
+        log_daemon_msg "$DESC $1  is running"
+    else
+        log_daemon_msg "$DESC $1 is not running"
+    fi
 }
 
 ###################################################################################################
@@ -74,9 +85,15 @@ stop)
 
 restart)
     for(( i=0; i<=4; i++ )); do
-        do_stop
+        do_stop "$i"
         sleep 1
-        do_start
+        do_start "$i"
+    done
+    ;;
+
+status)
+    for(( i=0; i<=4; i++ )); do
+        check_status "$i"
     done
     ;;
 *)

@@ -1,12 +1,11 @@
 #!/bin/bash
 ### BEGIN INIT INFO
 # Provides: apollo-lircd
-# Required-Start:   $network $remote_fs $syslog $time
-# Required-Stop:    $network $remote_fs $syslog $time
+# Required-Start:   $remote_fs $syslog $time
+# Required-Stop:    $remote_fs $syslog $time
 # Default-Start:    2 3 4 5
 # Default-Stop:     0 1 6
 # Short-Description: APOLLO-lircd
-# X-Start-Before: apollo-monitor apollo-controller
 ### END INIT INFO
 
 do_start()
@@ -23,7 +22,9 @@ do_start()
 do_stop()
 {
     for(( i=0; i<=4; i++ )); do
-        pkill -F /usr/local/var/run/lirc/lircd$i.pid
+        if [ -f /usr/local/var/run/lirc/lircd$i.pid ]; then
+            pkill -F /usr/local/var/run/lirc/lircd$i.pid
+        fi
     done
 }
 
@@ -46,7 +47,7 @@ restart)
 
 *)
 
-echo "Usage : service apollo-lircd {start|stop|restart|status}" >&2
+echo "Usage : service apollo-lircd {start|stop|restart}" >&2
 
 esac
 exit 0
