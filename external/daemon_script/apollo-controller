@@ -1,7 +1,7 @@
 #!/bin/bash
 ### BEGIN INIT INFO
 # Provides: apollo-controller
-# Required-Start:   $network $remote_fs $syslog $all
+# Required-Start:   $network $remote_fs $time apollo-monitor
 # Required-Stop:    $network $remote_fs $syslog
 # Default-Start:    2 3 4 5
 # Default-Stop:     0 1 6
@@ -31,6 +31,7 @@ do_start()
     if pidofproc -p  $PIDDIR/$NAME.pid $DAEMON  > /dev/null; then
         log_daemon_msg "$DESC is already running"
     else
+        sleep 1
         log_daemon_msg "Starting $DESC"
         start-stop-daemon --start --quiet --oknodo --pidfile "$PIDDIR/$NAME".pid \
             --chuid $USERID:$USERID --background --make-pidfile --exec $DAEMON -- $OPTIONS
@@ -49,7 +50,7 @@ do_stop()
 
     if pidofproc -p  $PIDDIR/$NAME.pid $DAEMON  > /dev/null; then
         log_daemon_msg "Stopping $DESC"
-        start-stop-daemon --stop --verbose --oknodo --pidfile "$PIDDIR/$NAME".pid \
+        start-stop-daemon --stop --quiet --verbose --oknodo --pidfile "$PIDDIR/$NAME".pid \
             --exec $DAEMON
 
         exitval=$?
@@ -57,21 +58,20 @@ do_stop()
         log_daemon_msg "$DESC is not running"
     fi
 
+    sudo rm -f "$PIDDIR/$NAME".pid
+
     exitval=$?
     log_end_msg $exitval
 }
 
 check_status()
 {
-    if [ -f $PIDDIR/$NAME.pid ]; then
-        PID=`cat $PIDDIR/$NAME.pid`
-        if [ -z "`ps axj | grep ${PID}| grep -v grep`" ]; then
-            log_daemon_msg "$DESC is NOT runnig but PIDFILE is Exists"
-        else
-            log_daemon_msg "[${PID}] $DESC is running"
-        fi                                                                                    
+    if status_of_proc -p  "$PIDDIR/$NAME".pid $DAEMON > /dev/null; then
+        log_daemon_msg "$DESC is running"
+        exit 0
     else
         log_daemon_msg "$DESC is not running"
+        exit 1
     fi
 }
 
@@ -97,7 +97,6 @@ restart)
 status)
     check_status
     ;;
-
 *)
 
 echo "Usage : service apollo-controller {start|stop|restart|status}" >&2
