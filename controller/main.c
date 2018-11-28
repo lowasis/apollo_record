@@ -544,6 +544,16 @@ static void *channel_change_thread(void *arg)
 
     free(arg);
 
+    ret = irremote_send_key(context, IRREMOTE_KEY_EXIT);
+    if (ret != 0)
+    {
+        log_e("Could not send irremote key");
+
+        return NULL;
+    }
+
+    usleep(1500 * 1000);
+
     char buf[4];
     snprintf(buf, sizeof(buf), "%3d", channel);
     for (int i = 0; i < strlen(buf); i++)
