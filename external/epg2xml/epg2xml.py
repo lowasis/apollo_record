@@ -464,18 +464,8 @@ def getEpg():
         with open(Channelfile) as f: # Read Channel Information file
             Channeldatajson = json.load(f)
     except EnvironmentError:
-        if sys.argv[0] != 'epg2xml':
-            temp_stdout = sys.stdout
-            sys.stdout = sys.__stdout__;
-            print('epg2xml : use internal channel string for null ' + Channelfile)
-            sys.stdout = temp_stdout
         Channeldatajson = json.loads(Channelstring, encoding='utf-8')
     except ValueError:
-        if sys.argv[0] != 'epg2xml':
-            temp_stdout = sys.stdout
-            sys.stdout = sys.__stdout__;
-            print('epg2xml : use internal channel string for invalid ' + Channelfile)
-            sys.stdout = temp_stdout
         Channeldatajson = json.loads(Channelstring, encoding='utf-8')
     print('<?xml version="1.0" encoding="UTF-8"?>')
     print('<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
@@ -925,11 +915,6 @@ try:
         default_verbose = Settings['default_verbose'] if 'default_verbose' in Settings else 'n'
         default_xmltvns = Settings['default_xmltvns'] if 'default_xmltvns' in Settings else 'n'
 except EnvironmentError:
-    if sys.argv[0] != 'epg2xml':
-        temp_stdout = sys.stdout
-        sys.stdout = sys.__stdout__;
-        print('epg2xml : use internal setting string for null ' + Settingfile)
-        sys.stdout = temp_stdout
     Settings = json.loads(Settingstring, encoding='utf-8')
     MyISP = Settings['MyISP'] if 'MyISP' in Settings else 'ALL'
     MyChannels = Settings['MyChannels'] if 'MyChannels' in Settings else ''
@@ -943,11 +928,6 @@ except EnvironmentError:
     default_verbose = Settings['default_verbose'] if 'default_verbose' in Settings else 'n'
     default_xmltvns = Settings['default_xmltvns'] if 'default_xmltvns' in Settings else 'n'
 except ValueError:
-    if sys.argv[0] != 'epg2xml':
-        temp_stdout = sys.stdout
-        sys.stdout = sys.__stdout__;
-        print('epg2xml : use internal setting string for invalid ' + Settingfile)
-        sys.stdout = temp_stdout
     Settings = json.loads(Settingstring, encoding='utf-8')
     MyISP = Settings['MyISP'] if 'MyISP' in Settings else 'ALL'
     MyChannels = Settings['MyChannels'] if 'MyChannels' in Settings else ''
