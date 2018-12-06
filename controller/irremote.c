@@ -29,6 +29,7 @@ static const struct {
     {IRREMOTE_KEY_8, "8"},
     {IRREMOTE_KEY_9, "9"},
     {IRREMOTE_KEY_OK, "OK"},
+    {IRREMOTE_KEY_EXIT, "EXIT"},
     {0, NULL}
 };
 

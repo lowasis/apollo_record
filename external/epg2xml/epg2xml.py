@@ -407,8 +407,10 @@ Settingstring = '\
     "default_verbose" : "y", \
     "###_COMMENT_###" : "### XMLTV_NS 정보 추가 출력 ###", \
     "default_xmltvns" : "n", \
+    "###_COMMENT_###" : "### epg 데이터 가져오는 이전 기간으로 0에서 3까지 설정가능 ###", \
+    "default_fetch_before" : "1", \
     "###_COMMENT_###" : "### epg 데이터 가져오는 기간으로 1에서 7까지 설정가능 ###", \
-    "default_fetch_limit" : "2", \
+    "default_fetch_limit" : "3", \
     "###_COMMENT_###" : "### epg 저장시 기본 저장 이름 (ex: /home/tvheadend/xmltv.xml) ###", \
     "default_xml_file" : "xmltv.xml", \
     "###_COMMENT_###" : "### # External XMLTV 사용시 기본 소켓 이름 (ex: /home/tvheadend/xmltv.sock) ###", \
@@ -464,18 +466,8 @@ def getEpg():
         with open(Channelfile) as f: # Read Channel Information file
             Channeldatajson = json.load(f)
     except EnvironmentError:
-        if sys.argv[0] != 'epg2xml':
-            temp_stdout = sys.stdout
-            sys.stdout = sys.__stdout__;
-            print('epg2xml : use internal channel string for null ' + Channelfile)
-            sys.stdout = temp_stdout
         Channeldatajson = json.loads(Channelstring, encoding='utf-8')
     except ValueError:
-        if sys.argv[0] != 'epg2xml':
-            temp_stdout = sys.stdout
-            sys.stdout = sys.__stdout__;
-            print('epg2xml : use internal channel string for invalid ' + Channelfile)
-            sys.stdout = temp_stdout
         Channeldatajson = json.loads(Channelstring, encoding='utf-8')
     print('<?xml version="1.0" encoding="UTF-8"?>')
     print('<!DOCTYPE tv SYSTEM "xmltv.dtd">\n')
@@ -919,17 +911,13 @@ try:
         default_xml_file = Settings['default_xml_file'] if 'default_xml_file' in Settings else 'xmltv.xml'
         default_xml_socket = Settings['default_xml_socket'] if 'default_xml_socket' in Settings else 'xmltv.sock'
         default_icon_url = Settings['default_icon_url'] if 'default_icon_url' in Settings else None
-        default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '2'
+        default_fetch_before = Settings['default_fetch_before'] if 'default_fetch_before' in Settings else '1'
+        default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '3'
         default_rebroadcast = Settings['default_rebroadcast'] if 'default_rebroadcast' in Settings else 'y'
         default_episode = Settings['default_episode'] if 'default_episode' in Settings else 'y'
         default_verbose = Settings['default_verbose'] if 'default_verbose' in Settings else 'n'
         default_xmltvns = Settings['default_xmltvns'] if 'default_xmltvns' in Settings else 'n'
 except EnvironmentError:
-    if sys.argv[0] != 'epg2xml':
-        temp_stdout = sys.stdout
-        sys.stdout = sys.__stdout__;
-        print('epg2xml : use internal setting string for null ' + Settingfile)
-        sys.stdout = temp_stdout
     Settings = json.loads(Settingstring, encoding='utf-8')
     MyISP = Settings['MyISP'] if 'MyISP' in Settings else 'ALL'
     MyChannels = Settings['MyChannels'] if 'MyChannels' in Settings else ''
@@ -937,17 +925,13 @@ except EnvironmentError:
     default_xml_file = Settings['default_xml_file'] if 'default_xml_file' in Settings else 'xmltv.xml'
     default_xml_socket = Settings['default_xml_socket'] if 'default_xml_socket' in Settings else 'xmltv.sock'
     default_icon_url = Settings['default_icon_url'] if 'default_icon_url' in Settings else None
-    default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '2'
+    default_fetch_before = Settings['default_fetch_before'] if 'default_fetch_before' in Settings else '1'
+    default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '3'
     default_rebroadcast = Settings['default_rebroadcast'] if 'default_rebroadcast' in Settings else 'y'
     default_episode = Settings['default_episode'] if 'default_episode' in Settings else 'y'
     default_verbose = Settings['default_verbose'] if 'default_verbose' in Settings else 'n'
     default_xmltvns = Settings['default_xmltvns'] if 'default_xmltvns' in Settings else 'n'
 except ValueError:
-    if sys.argv[0] != 'epg2xml':
-        temp_stdout = sys.stdout
-        sys.stdout = sys.__stdout__;
-        print('epg2xml : use internal setting string for invalid ' + Settingfile)
-        sys.stdout = temp_stdout
     Settings = json.loads(Settingstring, encoding='utf-8')
     MyISP = Settings['MyISP'] if 'MyISP' in Settings else 'ALL'
     MyChannels = Settings['MyChannels'] if 'MyChannels' in Settings else ''
@@ -955,7 +939,8 @@ except ValueError:
     default_xml_file = Settings['default_xml_file'] if 'default_xml_file' in Settings else 'xmltv.xml'
     default_xml_socket = Settings['default_xml_socket'] if 'default_xml_socket' in Settings else 'xmltv.sock'
     default_icon_url = Settings['default_icon_url'] if 'default_icon_url' in Settings else None
-    default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '2'
+    default_fetch_before = Settings['default_fetch_before'] if 'default_fetch_before' in Settings else '1'
+    default_fetch_limit = Settings['default_fetch_limit'] if 'default_fetch_limit' in Settings else '3'
     default_rebroadcast = Settings['default_rebroadcast'] if 'default_rebroadcast' in Settings else 'y'
     default_episode = Settings['default_episode'] if 'default_episode' in Settings else 'y'
     default_verbose = Settings['default_verbose'] if 'default_verbose' in Settings else 'n'
@@ -973,6 +958,7 @@ argu3.add_argument('-o', '--outfile', metavar = default_xml_file, nargs = '?', c
 argu3.add_argument('-s', '--socket', metavar = default_xml_socket, nargs = '?', const = default_xml_socket, help = 'xmltv.sock(External: XMLTV)로 EPG정보 전송')
 argu4 = parser.add_argument_group('추가옵션')
 argu4.add_argument('--icon', dest = 'icon', metavar = "http://www.example.com/icon", help = '채널 아이콘 URL, 기본값: '+ default_icon_url, default = default_icon_url)
+argu4.add_argument('-b', '--before', dest = 'before', type=int, metavar = "0-3", choices = range(0,4), help = 'EPG 정보를 가져올 이전 기간, 기본값: '+ str(default_fetch_before), default = default_fetch_before)
 argu4.add_argument('-l', '--limit', dest = 'limit', type=int, metavar = "1-7", choices = range(1,8), help = 'EPG 정보를 가져올 기간, 기본값: '+ str(default_fetch_limit), default = default_fetch_limit)
 argu4.add_argument('--rebroadcast', dest = 'rebroadcast', metavar = 'y, n', choices = 'yn', help = '제목에 재방송 정보 출력', default = default_rebroadcast)
 argu4.add_argument('--episode', dest = 'episode', metavar = 'y, n', choices = 'yn', help = '제목에 회차 정보 출력', default = default_episode)
@@ -990,6 +976,7 @@ elif args.socket :
     default_output = "s"
     default_xml_socket = args.socket
 if args.icon : default_icon_url = args.icon
+if args.before : default_fetch_before = args.before
 if args.limit : default_fetch_limit = args.limit
 if args.rebroadcast : default_rebroadcast = args.rebroadcast
 if args.episode : default_episode = args.episode
@@ -1060,6 +1047,17 @@ else :
     printError("epg2xml.json 파일의 default_verbose항목이 없습니다.");
     sys.exit()
 
+
+if default_fetch_before :
+    if not any(str(default_fetch_before) in s for s in ['0', '1', '2', '3']):
+        printError("default_fetch_before 는 0, 1, 2, 3만 가능합니다.")
+        sys.exit()
+    else :
+        before = int(default_fetch_before)
+else :
+    printError("epg2xml.json 파일의 default_fetch_before항목이 없습니다.");
+    sys.exit()
+
 if default_fetch_limit :
     if not any(str(default_fetch_limit) in s for s in ['1', '2', '3', '4', '5', '6', '7']):
         printError("default_fetch_limit 는 1, 2, 3, 4, 5, 6, 7만 가능합니다.")
@@ -1089,4 +1087,5 @@ elif output == "socket" :
     else :
         printError("epg2xml.json 파일의 default_xml_socket항목이 없습니다.");
         sys.exit()
+today = datetime.date.today() - datetime.timedelta(days=before)
 getEpg()

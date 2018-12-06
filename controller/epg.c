@@ -7,10 +7,8 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <python2.7/Python.h>
 #include <libxml/xmlreader.h>
 #include "log.h"
-#include "epg2xml.h"
 #include "epg_channel_table_skb.h"
 #include "epg_channel_table_kt.h"
 #include "epg_channel_table_lgu.h"
@@ -40,7 +38,7 @@ static const struct {
     {0, NULL}
 };
 
-static pthread_mutex_t libpython_mutex;
+static pthread_mutex_t python_mutex;
 
 
 static void *request_data_thread(void *arg)
@@ -82,7 +80,7 @@ static void *request_data_thread(void *arg)
         }
     }
 
-    ret = pthread_mutex_lock(&libpython_mutex);
+    ret = pthread_mutex_lock(&python_mutex);
     if (ret != 0)
     {
         log_e("Could not lock mutex");
@@ -90,25 +88,16 @@ static void *request_data_thread(void *arg)
         return NULL;
     }
 
-    Py_Initialize();
+    char str[128];
+    snprintf(str, sizeof(str), "python /usr/local/bin/epg2xml.py -c %d "
+             "--episode n --verbose n -o %s", epg2xml_id, context->name);
 
-    Py_SetProgramName("epg2xml");
-
-    char str[8];
-    snprintf(str, sizeof(str), "%d", epg2xml_id);
-    char *python_argv[] = {"epg2xml", "-c", str, "--episode", "n",
-                           "--verbose", "n", "-o", context->name};
-    int python_argc = sizeof(python_argv) / sizeof(python_argv[0]);
-    PySys_SetArgv(python_argc, python_argv);
-
-    ret = PyRun_SimpleString(___external_epg2xml_epg2xml_py);
+    ret = system(str);
     if (ret != 0)
     {
-        log_e("Could not run python simple string");
+        log_e("Could not run python");
 
-        Py_Finalize();
-
-        ret = pthread_mutex_unlock(&libpython_mutex);
+        ret = pthread_mutex_unlock(&python_mutex);
         if (ret != 0)
         {
             log_e("Could not unlock mutex");
@@ -124,9 +113,7 @@ static void *request_data_thread(void *arg)
         callback(context, channel, callback_arg);
     }
 
-    Py_Finalize();
-
-    ret = pthread_mutex_unlock(&libpython_mutex);
+    ret = pthread_mutex_unlock(&python_mutex);
     if (ret != 0)
     {
         log_e("Could not unlock mutex");
@@ -635,7 +622,7 @@ int epg_init(char *name, EpgBroadcastServiceOperator oper, EpgContext *context)
 
     context->oper = oper;
 
-    pthread_mutex_init(&libpython_mutex, NULL);
+    pthread_mutex_init(&python_mutex, NULL);
 
     return 0;
 }
@@ -647,7 +634,7 @@ void epg_uninit(EpgContext *context)
         return;
     }
 
-    pthread_mutex_destroy(&libpython_mutex);
+    pthread_mutex_destroy(&python_mutex);
 
     free(context->name);
 }

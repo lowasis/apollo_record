@@ -22,7 +22,8 @@ typedef enum {
     IRREMOTE_KEY_7,
     IRREMOTE_KEY_8,
     IRREMOTE_KEY_9,
-    IRREMOTE_KEY_OK
+    IRREMOTE_KEY_OK,
+    IRREMOTE_KEY_EXIT
 } IrRemoteKey;
 
 typedef struct IrRemoteContext {
