@@ -3694,7 +3694,7 @@ int main(int argc, char **argv)
                                        &ret_schedule);
             if (ret == 0)
             {
-                if (current_schedule[i].start != ret_schedule->start)
+                if (current_schedule[i].start != ret_schedule->start || current_schedule[i].channel != ret_schedule->channel)
                 {
                     char start1[strlen("YYYY-MM-DD HH:MM:SS") + 1];
                     ret = convert_unixtime_to_localtime_str(
@@ -3736,7 +3736,7 @@ int main(int argc, char **argv)
                            start2, end2, ret_schedule->channel);
                 }
 
-                if (current_schedule[i].start != ret_schedule->start)
+                if (current_schedule[i].start != ret_schedule->start || current_schedule[i].channel != ret_schedule->channel)
                 {
                     if (ret_schedule->channel == status[i].channel)
                     {
