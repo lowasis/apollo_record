@@ -24,7 +24,7 @@ extern "C" {
 
 #define EPG_REQUEST_PERIOD_SEC          (3600 * 3)
 
-#define SCHEDULE_SEND_LEADING_DAY       (2)
+#define SCHEDULE_SEND_LEADING_DAY       (90)
 
 #define LINE_BUFFER_SIZE                (128)
 
