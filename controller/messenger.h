@@ -7,6 +7,7 @@ extern "C" {
 
 typedef enum {
     MESSENGER_MESSAGE_TYPE_ACK = 0,
+    MESSENGER_MESSAGE_TYPE_ALIVE,
     MESSENGER_MESSAGE_TYPE_STREAM_START,
     MESSENGER_MESSAGE_TYPE_STREAM_STOP,
     MESSENGER_MESSAGE_TYPE_LOUDNESS,
@@ -28,6 +29,10 @@ typedef enum {
     MESSENGER_MESSAGE_TYPE_CHANNEL_LIST,
     MESSENGER_MESSAGE_TYPE_CHANNEL_LIST_REQUEST,
 } MessengerMessageType;
+
+typedef struct MessengerStatus {
+    int client_connected;
+} MessengerStatus;
 
 typedef struct MessengerMessage {
     MessengerMessageType type;
@@ -132,6 +137,8 @@ typedef struct MessengerContext {
 
 int messenger_init(int port, int buffer_size, MessengerContext *context);
 void messenger_uninit(MessengerContext *context);
+int messenger_get_status(MessengerContext *context, MessengerStatus *status);
+int messenger_disconnect_client(MessengerContext *context);
 int messenger_send_message(MessengerContext *context,
                            MessengerMessage *message);
 int messenger_receive_message(MessengerContext *context,

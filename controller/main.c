@@ -2441,6 +2441,9 @@ int main(int argc, char **argv)
     uint64_t status_send_usec = 0;
     int status_send_flag = 0;
 
+    uint64_t alive_send_usec = 0;
+    uint64_t alive_receive_usec = 0;
+
     uint64_t epg_request_usec = 0;
 
     int program_end_flag = 0;
@@ -2640,6 +2643,21 @@ int main(int argc, char **argv)
 
             switch (messenger_recv_message.type)
             {
+                case MESSENGER_MESSAGE_TYPE_ALIVE:
+                {
+                    ret = send_ack_message(&messenger_context, my_ip,
+                                           messenger_recv_message.number);
+                    if (ret != 0)
+                    {
+                        log_e("Could not send ack message");
+                    }
+
+                    log_d("Client alive");
+
+                    alive_receive_usec = get_usec();
+                    break;
+                }
+
                 case MESSENGER_MESSAGE_TYPE_STREAM_START:
                 {
                     ret = send_ack_message(&messenger_context, my_ip,
@@ -3590,87 +3608,137 @@ int main(int argc, char **argv)
             }
         }
 
+        MessengerStatus messenger_status;
+        ret = messenger_get_status(&messenger_context, &messenger_status);
+        if (ret == 0)
+        {
+            if (messenger_status.client_connected)
+            {
+                uint64_t diff_usec;
+                diff_usec = get_usec() - loudness_send_usec;
+                if (LOUDNESS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
+                {
+                    if (loudness_send_flag)
+                    {
+                        MessengerLoudnessData data[ipc_socket_name_count];
+                        for (int i = 0; i < ipc_socket_name_count; i++)
+                        {
+                            data[i].index = i;
+                            data[i].reference = loudness[i].reference;
+                            if (isinf(data[i].reference) ||
+                                isnan(data[i].reference))
+                            {
+                                data[i].reference = 0.;
+                            }
+                            data[i].momentary = loudness[i].momentary;
+                             if (isinf(data[i].momentary) ||
+                                isnan(data[i].momentary))
+                            {
+                                data[i].momentary = 0.;
+                            }
+                            data[i].shortterm = loudness[i].shortterm;
+                            if (isinf(data[i].shortterm) ||
+                                isnan(data[i].shortterm))
+                            {
+                                data[i].shortterm = 0.;
+                            }
+                            data[i].integrated = loudness[i].integrated;
+                            if (isinf(data[i].integrated) ||
+                                isnan(data[i].integrated))
+                            {
+                                data[i].integrated = 0.;
+                            }
+                        }
+
+                        MessengerMessage messenger_message;
+                        messenger_message.type =
+                                                MESSENGER_MESSAGE_TYPE_LOUDNESS;
+                        strncpy(messenger_message.ip, my_ip,
+                                sizeof(messenger_message.ip));
+                        messenger_message.number = 0;
+                        messenger_message.count = ipc_socket_name_count;
+                        messenger_message.data = (void *)data;
+                        ret = messenger_send_message(&messenger_context,
+                                                     &messenger_message);
+                        if (ret != 0)
+                        {
+                            log_e("Could not send messenger loudness message");
+                        }
+                    }
+
+                    loudness_send_usec = get_usec();
+                }
+
+                diff_usec = get_usec() - status_send_usec;
+                if (STATUS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
+                {
+                    if (status_send_flag)
+                    {
+                        MessengerStatusData data[ipc_socket_name_count];
+                        for (int i = 0; i < ipc_socket_name_count; i++)
+                        {
+                            data[i].index = i;
+                            data[i].channel = status[i].channel;
+                            data[i].recording = status[i].recording;
+                        }
+
+                        MessengerMessage messenger_message;
+                        messenger_message.type = MESSENGER_MESSAGE_TYPE_STATUS;
+                        strncpy(messenger_message.ip, my_ip,
+                                sizeof(messenger_message.ip));
+                        messenger_message.number = 0;
+                        messenger_message.count = ipc_socket_name_count;
+                        messenger_message.data = (void *)data;
+                        ret = messenger_send_message(&messenger_context,
+                                                     &messenger_message);
+                        if (ret != 0)
+                        {
+                            log_e("Could not send messenger status message");
+                        }
+                    }
+
+                    status_send_usec = get_usec();
+                }
+
+                diff_usec = get_usec() - alive_send_usec;
+                if (ALIVE_SEND_PERIOD_SEC <= (diff_usec / 1000000))
+                {
+                    MessengerMessage messenger_message;
+                    messenger_message.type = MESSENGER_MESSAGE_TYPE_ALIVE;
+                    strncpy(messenger_message.ip, my_ip,
+                            sizeof(messenger_message.ip));
+                    messenger_message.number = 0;
+                    messenger_message.count = 0;
+                    messenger_message.data = NULL;
+                    ret = messenger_send_message(&messenger_context,
+                                                 &messenger_message);
+                    if (ret != 0)
+                    {
+                        log_e("Could not send messenger alive message");
+                    }
+
+                    alive_send_usec = get_usec();
+                }
+
+                diff_usec = get_usec() - alive_receive_usec;
+                if (ALIVE_TIMEOUT_SEC <= (diff_usec / 1000000))
+                {
+                    log_i("Messenger client alive timeout and disconnect");
+
+                    ret = messenger_disconnect_client(&messenger_context);
+                    if (ret != 0)
+                    {
+                        log_e("Could not disconnect messenger client");
+                    }
+                }
+            }
+            else
+            {
+                alive_receive_usec = get_usec();
+            }
+        }
+
         uint64_t diff_usec;
-        diff_usec = get_usec() - loudness_send_usec;
-        if (LOUDNESS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
-        {
-            if (loudness_send_flag)
-            {
-                MessengerLoudnessData data[ipc_socket_name_count];
-                for (int i = 0; i < ipc_socket_name_count; i++)
-                {
-                    data[i].index = i;
-                    data[i].reference = loudness[i].reference;
-                    if (isinf(data[i].reference) || isnan(data[i].reference))
-                    {
-                        data[i].reference = 0.;
-                    }
-                    data[i].momentary = loudness[i].momentary;
-                     if (isinf(data[i].momentary) || isnan(data[i].momentary))
-                    {
-                        data[i].momentary = 0.;
-                    }
-                    data[i].shortterm = loudness[i].shortterm;
-                    if (isinf(data[i].shortterm) || isnan(data[i].shortterm))
-                    {
-                        data[i].shortterm = 0.;
-                    }
-                    data[i].integrated = loudness[i].integrated;
-                    if (isinf(data[i].integrated) || isnan(data[i].integrated))
-                    {
-                        data[i].integrated = 0.;
-                    }
-                }
-
-                MessengerMessage messenger_message;
-                messenger_message.type = MESSENGER_MESSAGE_TYPE_LOUDNESS;
-                strncpy(messenger_message.ip, my_ip,
-                        sizeof(messenger_message.ip));
-                messenger_message.number = 0;
-                messenger_message.count = ipc_socket_name_count;
-                messenger_message.data = (void *)data;
-                ret = messenger_send_message(&messenger_context,
-                                             &messenger_message);
-                if (ret != 0)
-                {
-                    log_e("Could not send messenger loudness message");
-                }
-            }
-
-            loudness_send_usec = get_usec();
-        }
-
-        diff_usec = get_usec() - status_send_usec;
-        if (STATUS_SEND_PERIOD_MSEC <= (diff_usec / 1000))
-        {
-            if (status_send_flag)
-            {
-                MessengerStatusData data[ipc_socket_name_count];
-                for (int i = 0; i < ipc_socket_name_count; i++)
-                {
-                    data[i].index = i;
-                    data[i].channel = status[i].channel;
-                    data[i].recording = status[i].recording;
-                }
-
-                MessengerMessage messenger_message;
-                messenger_message.type = MESSENGER_MESSAGE_TYPE_STATUS;
-                strncpy(messenger_message.ip, my_ip,
-                        sizeof(messenger_message.ip));
-                messenger_message.number = 0;
-                messenger_message.count = ipc_socket_name_count;
-                messenger_message.data = (void *)data;
-                ret = messenger_send_message(&messenger_context,
-                                             &messenger_message);
-                if (ret != 0)
-                {
-                    log_e("Could not send messenger status message");
-                }
-            }
-
-            status_send_usec = get_usec();
-        }
-
         diff_usec = get_usec() - epg_request_usec;
         if (EPG_REQUEST_PERIOD_SEC <= (diff_usec / 1000000))
         {

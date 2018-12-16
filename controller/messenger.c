@@ -79,6 +79,68 @@ static int generate_ack_xml(MessengerMessage *message, xmlTextWriter *writer)
     return 0;
 }
 
+static int generate_alive_xml(MessengerMessage *message, xmlTextWriter *writer)
+{
+    int ret;
+
+    if (!message || !writer)
+    {
+        return -1;
+    }
+
+    ret = xmlTextWriterStartDocument(writer, NULL, XML_ENCODING, NULL);
+    if (ret < 0)
+    {
+        log_e("Could not start xml document");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterStartElement(writer, BAD_CAST("alive"));
+    if (ret < 0)
+    {
+        log_e("Could not start xml element");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("ip"), "%s",
+                                            message->ip);
+    if (ret < 0)
+    {
+        log_e("Could not write xml attribute");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterWriteFormatAttribute(writer, BAD_CAST("number"), "%d",
+                                            message->number);
+    if (ret < 0)
+    {
+        log_e("Could not write xml attribute");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterEndElement(writer);
+    if (ret < 0)
+    {
+        log_e("Could not end xml element");
+
+        return -1;
+    }
+
+    ret = xmlTextWriterEndDocument(writer);
+    if (ret < 0)
+    {
+        log_e("Could not end xml document");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int generate_loudness_xml(MessengerMessage *message,
                                  xmlTextWriter *writer)
 {
@@ -1048,6 +1110,14 @@ static int generate_xml(MessengerMessage *message, char **buffer, int *size)
             }
             break;
 
+        case MESSENGER_MESSAGE_TYPE_ALIVE:
+            ret = generate_alive_xml(message, writer);
+            if (ret != 0)
+            {
+                log_e("Could not generate alive xml");
+            }
+            break;
+
         case MESSENGER_MESSAGE_TYPE_LOUDNESS:
             ret = generate_loudness_xml(message, writer);
             if (ret != 0)
@@ -1201,6 +1271,96 @@ static int parse_ack_xml(xmlTextReader *reader, MessengerMessage *message)
     if (!xmlStrcmp(str, BAD_CAST("ack")))
     {
         message->type = MESSENGER_MESSAGE_TYPE_ACK;
+    }
+    else
+    {
+        xmlFree(BAD_CAST(str));
+
+        return -1;
+    }
+
+    xmlFree(BAD_CAST(str));
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("ip"));
+    if (str)
+    {
+        strncpy(message->ip, str, sizeof(message->ip));
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->ip[0] = 0;
+    }
+
+    str = xmlTextReaderGetAttribute(reader, BAD_CAST("number"));
+    if (str)
+    {
+        message->number = strtol(str, NULL, 10);
+
+        xmlFree(BAD_CAST(str));
+    }
+    else
+    {
+        message->number = 0;
+    }
+
+    message->count = 0;
+    message->data = NULL;
+
+    return 0;
+}
+
+static int parse_alive_xml(xmlTextReader *reader, MessengerMessage *message)
+{
+    int ret;
+
+    if (!reader || !message)
+    {
+        return -1;
+    }
+
+    xmlReaderTypes type;
+    while (1)
+    {
+        type = xmlTextReaderNodeType(reader);
+        if (type == XML_READER_TYPE_COMMENT ||
+            type == XML_READER_TYPE_SIGNIFICANT_WHITESPACE)
+        {
+            ret = xmlTextReaderRead(reader);
+            if (ret != 1)
+            {
+                log_e("Could not read xml");
+
+                return -1;
+            }
+
+            continue;
+        }
+        else
+        {
+            break;
+        }
+    }
+    if (type != XML_READER_TYPE_ELEMENT)
+    {
+        log_e("Could not get xml element");
+
+        return -1;
+    }
+
+    const xmlChar *str;
+    str = xmlTextReaderName(reader);
+    if (!str)
+    {
+        log_e("Could not read xml element name");
+
+        return -1;
+    }
+
+    if (!xmlStrcmp(str, BAD_CAST("alive")))
+    {
+        message->type = MESSENGER_MESSAGE_TYPE_ALIVE;
     }
     else
     {
@@ -4019,6 +4179,10 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     ret = parse_ack_xml(reader, message);
     if (ret != 0)
     {
+        ret = parse_alive_xml(reader, message);
+    }
+    if (ret != 0)
+    {
         ret = parse_stream_start_xml(reader, message);
     }
     if (ret != 0)
@@ -4180,6 +4344,39 @@ void messenger_uninit(MessengerContext *context)
     free(context->rx_buffer);
 
     close(context->fd);
+}
+
+int messenger_get_status(MessengerContext *context, MessengerStatus *status)
+{
+    if (!context || !status)
+    {
+        return -1;
+    }
+
+    status->client_connected = 0;
+    if (0 < context->client_fd)
+    {
+        status->client_connected = 1;
+    }
+
+    return 0;
+}
+
+int messenger_disconnect_client(MessengerContext *context)
+{
+    if (!context)
+    {
+        return -1;
+    }
+
+    if (0 < context->client_fd)
+    {
+        close(context->client_fd);
+
+        context->client_fd = -1;
+    }
+
+    return 0;
 }
 
 int messenger_send_message(MessengerContext *context, MessengerMessage *message)

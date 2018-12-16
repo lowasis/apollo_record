@@ -22,6 +22,10 @@ extern "C" {
 
 #define STATUS_SEND_PERIOD_MSEC         (200)
 
+#define ALIVE_SEND_PERIOD_SEC           (2)
+
+#define ALIVE_TIMEOUT_SEC               (10)
+
 #define EPG_REQUEST_PERIOD_SEC          (3600 * 3)
 
 #define SCHEDULE_SEND_LEADING_DAY       (90)
