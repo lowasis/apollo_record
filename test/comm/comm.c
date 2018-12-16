@@ -76,6 +76,8 @@ int main(int argc, char **argv)
     char buf[1024];
     int len;
 
+    int cnt = 0;
+
     while(1)
     {
         ret = get_line(line_buf, sizeof(line_buf), &idx);
@@ -230,6 +232,15 @@ int main(int argc, char **argv)
             printf("content :\n");
             printf("%s\n", buf);
             printf("====================\n");
+        }
+
+        cnt++;
+        if (100 < cnt)
+        {
+            len = snprintf(buf, sizeof(buf), "<?xml version=\"1.0\" encoding=\"UTF-8\"?><alive ip=\"192.168.4.4\" number=\"7777\"/>\n");
+            send(sockfd, buf, len, 0);
+
+            cnt = 0;
         }
 
         usleep(10 * 1000);
