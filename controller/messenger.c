@@ -4258,6 +4258,54 @@ static int parse_xml(char *buffer, int size, MessengerMessage *message)
     return 0;
 }
 
+static int check_xml(char *buffer, int size)
+{
+    int ret;
+
+    if (!buffer)
+    {
+        return -1;
+    }
+
+    xmlTextReader *reader;
+    reader = xmlReaderForMemory(buffer, size, "", XML_ENCODING, 0);
+    if (!reader)
+    {
+        log_e("Could not get xml reader");
+
+        xmlCleanupParser();
+
+        return -1;
+    }
+
+    while (1)
+    {
+        ret = xmlTextReaderRead(reader);
+        if (ret == 0)
+        {
+            break;
+        }
+        else if (ret == 1)
+        {
+            continue;
+        }
+        else
+        {
+            xmlFreeTextReader(reader);
+
+            xmlCleanupParser();
+
+            return -1;
+        }
+    }
+
+    xmlFreeTextReader(reader);
+
+    xmlCleanupParser();
+
+    return 0;
+}
+
 int messenger_init(int port, int buffer_size, MessengerContext *context)
 {
     int ret;
@@ -4522,9 +4570,35 @@ int messenger_receive_message(MessengerContext *context,
     char *next_ptr;
     if (ptr)
     {
-        next_ptr = memmem(&ptr[strlen(XML_HEADER)],
-                          context->rx_buffer_index - strlen(XML_HEADER),
+        int len = context->rx_buffer_index - (int)(ptr - context->rx_buffer);
+        next_ptr = memmem(&ptr[strlen(XML_HEADER)], len - strlen(XML_HEADER),
                           XML_HEADER, strlen(XML_HEADER));
+
+        if (next_ptr)
+        {
+            len = (int)(next_ptr - ptr);
+            ret = check_xml(ptr, len);
+            if (ret != 0)
+            {
+                log_e("Wrong xml, discard");
+
+                context->rx_buffer_index -= (int)(next_ptr - context->rx_buffer);
+                memcpy(context->rx_buffer, next_ptr, context->rx_buffer_index);
+
+                return -1;
+            }
+        }
+        else
+        {
+            len = context->rx_buffer_index - (int)(ptr - context->rx_buffer);
+            ret = check_xml(ptr, len);
+            if (ret != 0)
+            {
+                log_e("Wrong xml, keep");
+
+                return -1;
+            }
+        }
     }
     else
     {
