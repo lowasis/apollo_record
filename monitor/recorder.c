@@ -9,7 +9,8 @@
 #include "recorder.h"
 
 
-int recorder_init(char *name, int in_video_width, int in_video_height,
+int recorder_init(char *name, RecorderRecordType record_type,
+                  int in_video_width, int in_video_height,
                   enum AVPixelFormat in_video_format, int video_width,
                   int video_height, AVRational video_framerate,
                   int video_bitrate, enum AVCodecID video_codec_id,
@@ -44,499 +45,592 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
         return -1;
     }
 
-    context->video_stream = avformat_new_stream(context->format_context, NULL);
-    if (!context->video_stream)
+    if (record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
     {
-        log_e("Could not create video stream");
+        context->video_stream = avformat_new_stream(context->format_context,
+                                                    NULL);
+        if (!context->video_stream)
+        {
+            log_e("Could not create video stream");
 
-        avio_close(context->format_context->pb);
+            avio_close(context->format_context->pb);
 
-        avformat_free_context(context->format_context);
+            avformat_free_context(context->format_context);
 
-        return -1;
+            return -1;
+        }
+
+        AVCodec *video_codec;
+        video_codec = avcodec_find_encoder(video_codec_id);
+        if (!video_codec)
+        {
+            log_e("Could not find video codec");
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_codec_context = avcodec_alloc_context3(video_codec);
+        if (!context->video_codec_context)
+        {
+            log_e("Could not allocate video codec context");
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_codec_context->bit_rate = video_bitrate;
+        context->video_codec_context->width = video_width;
+        context->video_codec_context->height = video_height;
+        context->video_codec_context->time_base = video_framerate;
+        context->video_codec_context->gop_size = 5;
+        context->video_codec_context->max_b_frames = 1;
+        context->video_codec_context->pix_fmt = video_codec->pix_fmts[0];
+        if (context->format_context->oformat->flags & AVFMT_GLOBALHEADER)
+        {
+            context->video_codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        }
+        ret = avcodec_open2(context->video_codec_context, video_codec, NULL);
+        if (ret < 0)
+        {
+            log_e("Could not open video codec");
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_stream->time_base =
+                                        context->video_codec_context->time_base;
+        ret = avcodec_parameters_from_context(context->video_stream->codecpar,
+                                              context->video_codec_context);
+        if (ret < 0)
+        {
+            log_e("Could not fill video stream parameters");
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_frame = av_frame_alloc();
+        if (!context->video_frame)
+        {
+            log_e("Could not allocate video frame");
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_frame->format = context->video_codec_context->pix_fmt;
+        context->video_frame->width = context->video_codec_context->width;
+        context->video_frame->height = context->video_codec_context->height;
+        ret = av_frame_get_buffer(context->video_frame, 32);
+        if (ret < 0)
+        {
+            log_e("Could not get video frame buffer");
+
+            av_frame_free(&context->video_frame);
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->video_packet = av_packet_alloc();
+        if (!context->video_packet)
+        {
+            log_e("Could not allocate video packet");
+
+            av_frame_free(&context->video_frame);
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+    }
+    else
+    {
+        context->video_stream = NULL;
+        context->video_codec_context = NULL;
+        context->video_frame = NULL;
+        context->video_packet = NULL;
     }
 
-    AVCodec *video_codec;
-    video_codec = avcodec_find_encoder(video_codec_id);
-    if (!video_codec)
+    if (record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+        record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
     {
-        log_e("Could not find video codec");
+        context->audio_stream = avformat_new_stream(context->format_context,
+                                                    NULL);
+        if (!context->audio_stream)
+        {
+            log_e("Could not create audio stream");
 
-        avio_close(context->format_context->pb);
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
 
-        avformat_free_context(context->format_context);
+                av_frame_free(&context->video_frame);
 
-        return -1;
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        AVCodec *audio_codec;
+        audio_codec = avcodec_find_encoder(audio_codec_id);
+        if (!audio_codec)
+        {
+            log_e("Could not find audio codec");
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_codec_context = avcodec_alloc_context3(audio_codec);
+        if (!context->audio_codec_context)
+        {
+            log_e("Could not allocate audio codec context");
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_codec_context->bit_rate = audio_bitrate;
+        context->audio_codec_context->sample_fmt = audio_codec->sample_fmts[0];
+        context->audio_codec_context->sample_rate = audio_samplerate;
+        context->audio_codec_context->channel_layout =
+                                  av_get_default_channel_layout(audio_channels);
+        context->audio_codec_context->channels = audio_channels;
+        if (context->format_context->oformat->flags & AVFMT_GLOBALHEADER)
+        {
+            context->audio_codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        }
+        ret = avcodec_open2(context->audio_codec_context, audio_codec, NULL);
+        if (ret < 0)
+        {
+            log_e("Could not open audio codec");
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_stream->time_base = (AVRational){1, audio_samplerate};
+        ret = avcodec_parameters_from_context(context->audio_stream->codecpar,
+                                              context->audio_codec_context);
+        if (ret < 0)
+        {
+            log_e("Could not fill audio stream parameters");
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_frame = av_frame_alloc();
+        if (!context->audio_frame)
+        {
+            log_e("Could not allocate audio frame");
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_frame->nb_samples =
+                                       context->audio_codec_context->frame_size;
+        context->audio_frame->format = context->audio_codec_context->sample_fmt;
+        context->audio_frame->sample_rate =
+                                      context->audio_codec_context->sample_rate;
+        context->audio_frame->channel_layout =
+                                   context->audio_codec_context->channel_layout;
+        ret = av_frame_get_buffer(context->audio_frame, 32);
+        if (ret < 0)
+        {
+            log_e("Could not get audio frame buffer");
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_packet = av_packet_alloc();
+        if (!context->audio_packet)
+        {
+            log_e("Could not allocate audio packet");
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_fifo = av_audio_fifo_alloc(in_audio_format,
+                                                  in_audio_channels,
+                                                  in_audio_samplerate);
+        if (!context->audio_fifo)
+        {
+            log_e("Could not allocate audio FIFO");
+
+            av_packet_free(&context->audio_packet);
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_fifo_frame = av_frame_alloc();
+        if (!context->audio_fifo_frame)
+        {
+            log_e("Could not allocate audio FIFO frame");
+
+            av_audio_fifo_free(context->audio_fifo);
+
+            av_packet_free(&context->audio_packet);
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        context->audio_fifo_frame->nb_samples =
+                                       context->audio_codec_context->frame_size;
+        context->audio_fifo_frame->format = in_audio_format;
+        context->audio_fifo_frame->sample_rate = in_audio_samplerate;
+        context->audio_fifo_frame->channel_layout =
+                               av_get_default_channel_layout(in_audio_channels);
+        ret = av_frame_get_buffer(context->audio_fifo_frame, 32);
+        if (ret < 0)
+        {
+            log_e("Could not get audio FIFO frame buffer");
+
+            av_frame_free(&context->audio_fifo_frame);
+
+            av_audio_fifo_free(context->audio_fifo);
+
+            av_packet_free(&context->audio_packet);
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
     }
 
-    context->video_codec_context = avcodec_alloc_context3(video_codec);
-    if (!context->video_codec_context)
+    if (record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
     {
-        log_e("Could not allocate video codec context");
+        context->sws_context = sws_getContext(in_video_width, in_video_height,
+                                              in_video_format, video_width,
+                                              video_height,
+                                              context->video_codec_context->pix_fmt,
+                                              SWS_BILINEAR, NULL, NULL, NULL);
+        if (!context->sws_context)
+        {
+            log_e("Could not get SW scaler context");
 
-        avio_close(context->format_context->pb);
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_frame_free(&context->audio_fifo_frame);
 
-        avformat_free_context(context->format_context);
+                av_audio_fifo_free(context->audio_fifo);
 
-        return -1;
+                av_packet_free(&context->audio_packet);
+
+                av_frame_free(&context->audio_frame);
+
+                avcodec_free_context(&context->audio_codec_context);
+            }
+
+            av_packet_free(&context->video_packet);
+
+            av_frame_free(&context->video_frame);
+
+            avcodec_free_context(&context->video_codec_context);
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+    }
+    else
+    {
+        context->sws_context = NULL;
     }
 
-    context->video_codec_context->bit_rate = video_bitrate;
-    context->video_codec_context->width = video_width;
-    context->video_codec_context->height = video_height;
-    context->video_codec_context->time_base = video_framerate;
-    context->video_codec_context->gop_size = 5;
-    context->video_codec_context->max_b_frames = 1;
-    context->video_codec_context->pix_fmt = video_codec->pix_fmts[0];
-    if (context->format_context->oformat->flags & AVFMT_GLOBALHEADER)
+    if (record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+        record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
     {
-        context->video_codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+        context->swr_context = swr_alloc_set_opts(NULL,
+                                        context->audio_frame->channel_layout,
+                                        context->audio_frame->format,
+                                        context->audio_frame->sample_rate,
+                                        context->audio_fifo_frame->channel_layout,
+                                        context->audio_fifo_frame->format,
+                                        context->audio_fifo_frame->sample_rate, 0,
+                                        NULL);
+        if (!context->swr_context)
+        {
+            log_e("Could not get SW resampler context");
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                sws_freeContext(context->sws_context);
+            }
+
+            av_frame_free(&context->audio_fifo_frame);
+
+            av_audio_fifo_free(context->audio_fifo);
+
+            av_packet_free(&context->audio_packet);
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
+
+        ret = swr_init(context->swr_context);
+        if (ret < 0)
+        {
+            log_e("Could not initialize SW resampler");
+
+            swr_free(&context->swr_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                sws_freeContext(context->sws_context);
+            }
+
+            av_frame_free(&context->audio_fifo_frame);
+
+            av_audio_fifo_free(context->audio_fifo);
+
+            av_packet_free(&context->audio_packet);
+
+            av_frame_free(&context->audio_frame);
+
+            avcodec_free_context(&context->audio_codec_context);
+
+            if (record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+            {
+                av_packet_free(&context->video_packet);
+
+                av_frame_free(&context->video_frame);
+
+                avcodec_free_context(&context->video_codec_context);
+            }
+
+            avio_close(context->format_context->pb);
+
+            avformat_free_context(context->format_context);
+
+            return -1;
+        }
     }
-    ret = avcodec_open2(context->video_codec_context, video_codec, NULL);
-    if (ret < 0)
+    else
     {
-        log_e("Could not open video codec");
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->video_stream->time_base = context->video_codec_context->time_base;
-    ret = avcodec_parameters_from_context(context->video_stream->codecpar,
-                                          context->video_codec_context);
-    if (ret < 0)
-    {
-        log_e("Could not fill video stream parameters");
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->video_frame = av_frame_alloc();
-    if (!context->video_frame)
-    {
-        log_e("Could not allocate video frame");
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->video_frame->format = context->video_codec_context->pix_fmt;
-    context->video_frame->width = context->video_codec_context->width;
-    context->video_frame->height = context->video_codec_context->height;
-    ret = av_frame_get_buffer(context->video_frame, 32);
-    if (ret < 0)
-    {
-        log_e("Could not get video frame buffer");
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->video_packet = av_packet_alloc();
-    if (!context->video_packet)
-    {
-        log_e("Could not allocate video packet");
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_stream = avformat_new_stream(context->format_context, NULL);
-    if (!context->audio_stream)
-    {
-        log_e("Could not create audio stream");
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
+        context->swr_context = NULL;
     }
 
-    AVCodec *audio_codec;
-    audio_codec = avcodec_find_encoder(audio_codec_id);
-    if (!audio_codec)
+    context->record_type = record_type;
+    if (record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
     {
-        log_e("Could not find audio codec");
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
+        context->in_video_width = in_video_width;
+        context->in_video_height = in_video_height;
     }
-
-    context->audio_codec_context = avcodec_alloc_context3(audio_codec);
-    if (!context->audio_codec_context)
+    else
     {
-        log_e("Could not allocate audio codec context");
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
+        context->in_video_width = 0;
+        context->in_video_height = 0;
     }
-
-    context->audio_codec_context->bit_rate = audio_bitrate;
-    context->audio_codec_context->sample_fmt = audio_codec->sample_fmts[0];
-    context->audio_codec_context->sample_rate = audio_samplerate;
-    context->audio_codec_context->channel_layout =
-                                av_get_default_channel_layout(audio_channels);
-    context->audio_codec_context->channels = audio_channels;
-    if (context->format_context->oformat->flags & AVFMT_GLOBALHEADER)
-    {
-        context->audio_codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    }
-    ret = avcodec_open2(context->audio_codec_context, audio_codec, NULL);
-    if (ret < 0)
-    {
-        log_e("Could not open audio codec");
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_stream->time_base = (AVRational){1, audio_samplerate};
-    ret = avcodec_parameters_from_context(context->audio_stream->codecpar,
-                                          context->audio_codec_context);
-    if (ret < 0)
-    {
-        log_e("Could not fill audio stream parameters");
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_frame = av_frame_alloc();
-    if (!context->audio_frame)
-    {
-        log_e("Could not allocate audio frame");
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_frame->nb_samples = context->audio_codec_context->frame_size;
-    context->audio_frame->format = context->audio_codec_context->sample_fmt;
-    context->audio_frame->sample_rate =
-                                    context->audio_codec_context->sample_rate;
-    context->audio_frame->channel_layout =
-                                context->audio_codec_context->channel_layout;
-    ret = av_frame_get_buffer(context->audio_frame, 32);
-    if (ret < 0)
-    {
-        log_e("Could not get audio frame buffer");
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_packet = av_packet_alloc();
-    if (!context->audio_packet)
-    {
-        log_e("Could not allocate audio packet");
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_fifo = av_audio_fifo_alloc(in_audio_format,
-                                              in_audio_channels,
-                                              in_audio_samplerate);
-    if (!context->audio_fifo)
-    {
-        log_e("Could not allocate audio FIFO");
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_fifo_frame = av_frame_alloc();
-    if (!context->audio_fifo_frame)
-    {
-        log_e("Could not allocate audio FIFO frame");
-
-        av_audio_fifo_free(context->audio_fifo);
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->audio_fifo_frame->nb_samples =
-                                    context->audio_codec_context->frame_size;
-    context->audio_fifo_frame->format = in_audio_format;
-    context->audio_fifo_frame->sample_rate = in_audio_samplerate;
-    context->audio_fifo_frame->channel_layout =
-                            av_get_default_channel_layout(in_audio_channels);
-    ret = av_frame_get_buffer(context->audio_fifo_frame, 32);
-    if (ret < 0)
-    {
-        log_e("Could not get audio FIFO frame buffer");
-
-        av_frame_free(&context->audio_fifo_frame);
-
-        av_audio_fifo_free(context->audio_fifo);
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->sws_context = sws_getContext(in_video_width, in_video_height,
-                                          in_video_format, video_width,
-                                          video_height,
-                                          context->video_codec_context->pix_fmt,
-                                          SWS_BILINEAR, NULL, NULL, NULL);
-    if (!context->sws_context)
-    {
-        log_e("Could not get SW scaler context");
-
-        av_frame_free(&context->audio_fifo_frame);
-
-        av_audio_fifo_free(context->audio_fifo);
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->swr_context = swr_alloc_set_opts(NULL,
-                                    context->audio_frame->channel_layout,
-                                    context->audio_frame->format,
-                                    context->audio_frame->sample_rate,
-                                    context->audio_fifo_frame->channel_layout,
-                                    context->audio_fifo_frame->format,
-                                    context->audio_fifo_frame->sample_rate, 0,
-                                    NULL);
-    if (!context->swr_context)
-    {
-        log_e("Could not get SW resampler context");
-
-        sws_freeContext(context->sws_context);
-
-        av_frame_free(&context->audio_fifo_frame);
-
-        av_audio_fifo_free(context->audio_fifo);
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    ret = swr_init(context->swr_context);
-    if (ret < 0)
-    {
-        log_e("Could not initialize SW resampler");
-
-        swr_free(&context->swr_context);
-
-        sws_freeContext(context->sws_context);
-
-        av_frame_free(&context->audio_fifo_frame);
-
-        av_audio_fifo_free(context->audio_fifo);
-
-        av_packet_free(&context->audio_packet);
-
-        av_frame_free(&context->audio_frame);
-
-        avcodec_free_context(&context->audio_codec_context);
-
-        av_packet_free(&context->video_packet);
-
-        av_frame_free(&context->video_frame);
-
-        avcodec_free_context(&context->video_codec_context);
-
-        avio_close(context->format_context->pb);
-
-        avformat_free_context(context->format_context);
-
-        return -1;
-    }
-
-    context->in_video_width = in_video_width;
-    context->in_video_height = in_video_height;
     context->video_pts = 0;
     context->audio_pts = 0;
     context->audio_pts_offset = 0;
@@ -546,25 +640,41 @@ int recorder_init(char *name, int in_video_width, int in_video_height,
     {
         log_e("Could not write output file header");
 
-        swr_free(&context->swr_context);
+        if (record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+            record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+        {
+            swr_free(&context->swr_context);
+        }
 
-        sws_freeContext(context->sws_context);
+        if (record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+            record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+        {
+            sws_freeContext(context->sws_context);
+        }
 
-        av_frame_free(&context->audio_fifo_frame);
+        if (record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+            record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+        {
+            av_frame_free(&context->audio_fifo_frame);
 
-        av_audio_fifo_free(context->audio_fifo);
+            av_audio_fifo_free(context->audio_fifo);
 
-        av_packet_free(&context->audio_packet);
+            av_packet_free(&context->audio_packet);
 
-        av_frame_free(&context->audio_frame);
+            av_frame_free(&context->audio_frame);
 
-        avcodec_free_context(&context->audio_codec_context);
+            avcodec_free_context(&context->audio_codec_context);
+        }
 
-        av_packet_free(&context->video_packet);
+        if (record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+            record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+        {
+            av_packet_free(&context->video_packet);
 
-        av_frame_free(&context->video_frame);
+            av_frame_free(&context->video_frame);
 
-        avcodec_free_context(&context->video_codec_context);
+            avcodec_free_context(&context->video_codec_context);
+        }
 
         avio_close(context->format_context->pb);
 
@@ -590,25 +700,41 @@ void recorder_uninit(RecorderContext *context)
 
     av_write_trailer(context->format_context);
 
-    swr_free(&context->swr_context);
+    if (context->record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+    {
+        swr_free(&context->swr_context);
+    }
 
-    sws_freeContext(context->sws_context);
+    if (context->record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+    {
+        sws_freeContext(context->sws_context);
+    }
 
-    av_frame_free(&context->audio_fifo_frame);
+    if (context->record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+    {
+        av_frame_free(&context->audio_fifo_frame);
 
-    av_audio_fifo_free(context->audio_fifo);
+        av_audio_fifo_free(context->audio_fifo);
 
-    av_packet_free(&context->audio_packet);
+        av_packet_free(&context->audio_packet);
 
-    av_frame_free(&context->audio_frame);
+        av_frame_free(&context->audio_frame);
 
-    avcodec_free_context(&context->audio_codec_context);
+        avcodec_free_context(&context->audio_codec_context);
+    }
 
-    av_packet_free(&context->video_packet);
+    if (context->record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO)
+    {
+        av_packet_free(&context->video_packet);
 
-    av_frame_free(&context->video_frame);
+        av_frame_free(&context->video_frame);
 
-    avcodec_free_context(&context->video_codec_context);
+        avcodec_free_context(&context->video_codec_context);
+    }
 
     avio_close(context->format_context->pb);
 
@@ -623,6 +749,14 @@ int recorder_write_video_frame(RecorderContext *context, void *frame, int size)
         !context->video_codec_context || !context->video_frame ||
         !context->video_packet || !context->sws_context)
     {
+        return -1;
+    }
+
+    if (!(context->record_type == RECORDER_RECORD_TYPE_VIDEO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO))
+    {
+        log_e("Wrong record type");
+
         return -1;
     }
 
@@ -700,6 +834,14 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
         return -1;
     }
 
+    if (!(context->record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY ||
+        context->record_type == RECORDER_RECORD_TYPE_VIDEO_AUDIO))
+    {
+        log_e("Wrong record type");
+
+        return -1;
+    }
+
     ret = av_audio_fifo_write(context->audio_fifo, &frame, count);
     if (ret < count)
     {
@@ -732,20 +874,28 @@ int recorder_write_audio_frame(RecorderContext *context, void *frame, int count)
             return -1;
         }
 
-        int64_t pts = context->video_pts *
-                      context->audio_codec_context->sample_rate *
-                      context->video_codec_context->time_base.num /
-                      context->video_codec_context->time_base.den;
-        if (pts == context->audio_pts)
+        if (context->record_type == RECORDER_RECORD_TYPE_AUDIO_ONLY)
         {
-            context->audio_pts_offset++;
-            context->audio_frame->pts = pts + context->audio_pts_offset;
+            context->audio_frame->pts = context->audio_pts;
+            context->audio_pts += context->audio_frame->nb_samples;
         }
         else
         {
-            context->audio_frame->pts = pts;
-            context->audio_pts = pts;
-            context->audio_pts_offset = 0;
+            int64_t pts = context->video_pts *
+                          context->audio_codec_context->sample_rate *
+                          context->video_codec_context->time_base.num /
+                          context->video_codec_context->time_base.den;
+            if (pts == context->audio_pts)
+            {
+                context->audio_pts_offset++;
+                context->audio_frame->pts = pts + context->audio_pts_offset;
+            }
+            else
+            {
+                context->audio_frame->pts = pts;
+                context->audio_pts = pts;
+                context->audio_pts_offset = 0;
+            }
         }
 
         ret = avcodec_send_frame(context->audio_codec_context,

@@ -12,6 +12,12 @@
 extern "C" {
 #endif
 
+typedef enum {
+    RECORDER_RECORD_TYPE_VIDEO_ONLY = 0,
+    RECORDER_RECORD_TYPE_AUDIO_ONLY,
+    RECORDER_RECORD_TYPE_VIDEO_AUDIO
+} RecorderRecordType;
+
 typedef struct RecorderContext {
     AVFormatContext *format_context;
     AVStream *video_stream;
@@ -26,6 +32,7 @@ typedef struct RecorderContext {
     AVFrame *audio_fifo_frame;
     struct SwsContext *sws_context;
     struct SwrContext *swr_context;
+    RecorderRecordType record_type;
     int in_video_width;
     int in_video_height;
     int64_t video_pts;
@@ -33,7 +40,8 @@ typedef struct RecorderContext {
     int64_t audio_pts_offset;
 } RecorderContext;
 
-int recorder_init(char *name, int in_video_width, int in_video_height,
+int recorder_init(char *name, RecorderRecordType record_type,
+                  int in_video_width, int in_video_height,
                   enum AVPixelFormat in_video_format, int video_width,
                   int video_height, AVRational video_framerate,
                   int video_bitrate, enum AVCodecID video_codec_id,

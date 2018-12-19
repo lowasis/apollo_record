@@ -774,6 +774,16 @@ static int generate_log_list_xml(MessengerMessage *message,
             return -1;
         }
 
+        ret = xmlTextWriterWriteFormatAttribute(writer,
+                                                BAD_CAST("record_name"), "%s",
+                                                data[i].record_name);
+        if (ret < 0)
+        {
+            log_e("Could not write xml attribute");
+
+            return -1;
+        }
+
         ret = xmlTextWriterEndElement(writer);
         if (ret < 0)
         {

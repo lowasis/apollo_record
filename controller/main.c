@@ -67,6 +67,7 @@ typedef struct LogList {
     char end[24];
     int channel;
     char channel_name[24];
+    char record_name[128];
 } LogList;
 
 typedef struct UserLoudness {
@@ -727,6 +728,57 @@ static int loudness_log_end(IpcContext *context, int index)
     return 0;
 }
 
+static int audio_record_start(IpcContext *context, int index, int channel,
+                              char *channel_name, char *path, LogList *list)
+{
+    int ret;
+
+    char curr[strlen("YYYY-MM-DD HH:MM:SS") + 1];
+    ret = convert_unixtime_to_localtime_str(time(NULL), curr, sizeof(curr));
+    if (ret != 0)
+    {
+        strncpy(curr, "1970-01-01 00:00:00", sizeof(curr));
+    }
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AUDIO_RECORD_START;
+    ret = snprintf(ipc_message.arg, sizeof(ipc_message.arg), "%s/", path);
+    snprintf(&ipc_message.arg[ret], sizeof(ipc_message.arg) - ret,
+             "%s_%d_%d_%s_audio.ts", curr, index, channel, channel_name);
+    remove_non_filename_character(&ipc_message.arg[ret],
+                                  sizeof(ipc_message.arg) - ret);
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        log_e("Could not send ipc message");
+
+        return -1;
+    }
+
+    strncpy(list->record_name, &ipc_message.arg[strlen(path) + 1],
+            sizeof(list->record_name));
+
+    return 0;
+}
+
+static int audio_record_end(IpcContext *context, int index)
+{
+    int ret;
+
+    IpcMessage ipc_message;
+    ipc_message.command = IPC_COMMAND_AUDIO_RECORD_END;
+    ipc_message.arg[0] = 0;
+    ret = ipc_send_message(&context[index], &ipc_message);
+    if (ret != 0)
+    {
+        log_e("Could not send ipc message");
+
+        return -1;
+    }
+
+    return 0;
+}
+
 static int av_record_start(IpcContext *context, int index, int channel,
                            char *channel_name, char *path,
                            double loudness_offset, PlaybackList *list)
@@ -1245,6 +1297,8 @@ static int save_log_list_data(DatabaseContext *context, LogList *list,
         data[i].channel = list[i].channel;
         strncpy(data[i].channel_name, list[i].channel_name,
                 sizeof(data[i].channel_name));
+        strncpy(data[i].record_name, list[i].record_name,
+                sizeof(data[i].record_name));
     }
 
     ret = database_set_log_list_data(context, data, count);
@@ -1312,6 +1366,8 @@ static int load_log_list_data(DatabaseContext *context, LogList **list,
         new_list[i].channel = data[i].channel;
         strncpy(new_list[i].channel_name, data[i].channel_name,
                 sizeof(data[i].channel_name));
+        strncpy(new_list[i].record_name, data[i].record_name,
+                sizeof(data[i].record_name));
     }
 
     if (*list)
@@ -2501,6 +2557,13 @@ int main(int argc, char **argv)
         {
             log_i("%d, Loudness log start", i);
 
+            ret = audio_record_start(ipc_context, i, status[i].channel,
+                                     channel_name, av_record_path, &log_list);
+            if (ret == 0)
+            {
+                log_i("%d, Audio record start", i);
+            }
+
             ret = save_log_list_data(&database_context, &log_list, 1);
             if (ret != 0)
             {
@@ -2832,6 +2895,12 @@ int main(int argc, char **argv)
 
                                 if (index < ipc_socket_name_count)
                                 {
+                                    ret = audio_record_end(ipc_context, index);
+                                    if (ret == 0)
+                                    {
+                                        log_i("%d, Audio record end", index);
+                                    }
+
                                     ret = loudness_log_end(ipc_context, index);
                                     if (ret == 0)
                                     {
@@ -2877,6 +2946,18 @@ int main(int argc, char **argv)
                                     if (ret == 0)
                                     {
                                         log_i("%d, Loudness log start", index);
+
+                                        ret = audio_record_start(ipc_context,
+                                                        index,
+                                                        status[index].channel,
+                                                        channel_name,
+                                                        av_record_path,
+                                                        &log_list);
+                                        if (ret == 0)
+                                        {
+                                            log_i("%d, Audio record start",
+                                                  index);
+                                        }
 
                                         ret = save_log_list_data(
                                                               &database_context,
@@ -3251,6 +3332,8 @@ int main(int argc, char **argv)
                             data[j].channel = list[i].channel;
                             strncpy(data[j].channel_name, list[i].channel_name,
                                     sizeof(data[j].channel_name));
+                            strncpy(data[j].record_name, list[i].record_name,
+                                    sizeof(data[j].record_name));
 
                             j++;
                         }
@@ -3826,6 +3909,12 @@ int main(int argc, char **argv)
                             }
                         }
 
+                        ret = audio_record_end(ipc_context, i);
+                        if (ret == 0)
+                        {
+                            log_i("%d, Audio record end", i);
+                        }
+
                         ret = loudness_log_end(ipc_context, i);
                         if (ret == 0)
                         {
@@ -3868,6 +3957,15 @@ int main(int argc, char **argv)
                         if (ret == 0)
                         {
                             log_i("%d, Loudness log start", i);
+
+                            ret = audio_record_start(ipc_context, i,
+                                                     status[i].channel,
+                                                     channel_name,
+                                                     av_record_path, &log_list);
+                            if (ret == 0)
+                            {
+                                log_i("%d, Audio record start", i);
+                            }
 
                             ret = save_log_list_data(&database_context,
                                                      &log_list, 1);

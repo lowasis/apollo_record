@@ -264,6 +264,11 @@ static int get_log_list_data_callback(void *arg, int argc, char **argv,
                 strncpy(data[*i].channel_name, argv[j],
                         sizeof(data->channel_name));
             }
+            else if (strcmp(col[j], "RECORD_NAME") == 0)
+            {
+                strncpy(data[*i].record_name, argv[j],
+                        sizeof(data->record_name));
+            }
         }
 
         (*i)++;
@@ -442,9 +447,10 @@ int database_init(char *name, DatabaseContext *context)
              "START         CHAR(%ld) NOT NULL, "
              "END           CHAR(%ld) NOT NULL, "
              "CHANNEL       INTEGER NOT NULL, "
-             "CHANNEL_NAME  CHAR(%ld) NOT NULL);",
+             "CHANNEL_NAME  CHAR(%ld) NOT NULL, "
+             "RECORD_NAME   CHAR(%ld) NOT NULL);",
              sizeof(l.name), sizeof(l.start), sizeof(l.end),
-             sizeof(l.channel_name));
+             sizeof(l.channel_name), sizeof(l.record_name));
     ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
     if(ret != SQLITE_OK)
     {
@@ -929,11 +935,11 @@ int database_set_log_list_data(DatabaseContext *context,
         char query[512];
         snprintf(query, sizeof(query),
                  "INSERT OR REPLACE INTO LOG_LIST "
-                 "(ID, NAME, START, END, CHANNEL, CHANNEL_NAME) VALUES "
-                 "((SELECT ID FROM LOG_LIST WHERE NAME = \"%s\"), "
-                 "\"%s\", \"%s\", \"%s\", %d, \"%s\");",
+                 "(ID, NAME, START, END, CHANNEL, CHANNEL_NAME, RECORD_NAME) "
+                 "VALUES ((SELECT ID FROM LOG_LIST WHERE NAME = \"%s\"), "
+                 "\"%s\", \"%s\", \"%s\", %d, \"%s\", \"%s\");",
                  data[i].name, data[i].name, data[i].start, data[i].end,
-                 data[i].channel, data[i].channel_name);
+                 data[i].channel, data[i].channel_name, data[i].record_name);
 
         ret = sqlite3_exec(context->db, query, NULL, NULL, NULL);
         if(ret != SQLITE_OK)
@@ -959,7 +965,8 @@ int database_get_log_list_data(DatabaseContext *context,
 
     char query[512];
     snprintf(query, sizeof(query),
-             "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME FROM LOG_LIST;");
+             "SELECT NAME, START, END, CHANNEL, CHANNEL_NAME, RECORD_NAME "
+             "FROM LOG_LIST;");
 
     int i = 0;
     void *arg[] = {data, &count, &i};

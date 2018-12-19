@@ -44,6 +44,7 @@ typedef struct DatabaseLogListData {
     char end[24];
     int channel;
     char channel_name[24];
+    char record_name[128];
 } DatabaseLogListData;
 
 typedef struct DatabaseUserLoudnessData {

@@ -24,15 +24,18 @@ typedef struct VideoThreadArg {
 typedef struct AudioThreadArg {
     char *audio_device_name;
     RecorderContext *recorder_context;
+    RecorderContext *audio_recorder_context;
     AnalyzerContext *analyzer_context;
     AnalyzerContext *loudness_log_analyzer_context;
     AnalyzerContext *av_record_analyzer_context;
     int *loudness_log_flag;
+    int *audio_record_flag;
     int *av_record_flag;
     int *program_end_flag;
     pthread_mutex_t *recorder_mutex;
     pthread_mutex_t *analyzer_mutex;
     pthread_mutex_t *loudness_log_mutex;
+    pthread_mutex_t *audio_record_mutex;
     pthread_mutex_t *av_record_mutex;
 } AudioThreadArg;
 
@@ -414,6 +417,31 @@ static void *audio_thread(void *a)
             }
         }
 
+        ret = pthread_mutex_lock(arg->audio_record_mutex);
+        if (ret != 0)
+        {
+            log_e("Could not lock audio record mutex");
+        }
+        else
+        {
+            if (*arg->audio_record_flag)
+            {
+                ret = recorder_write_audio_frame(arg->audio_recorder_context,
+                                                 audio_frame,
+                                                 received_audio_frame_count);
+                if (ret != 0)
+                {
+                    log_e("Could not write audio recorder audio frame");
+                }
+            }
+
+            ret = pthread_mutex_unlock(arg->audio_record_mutex);
+            if (ret != 0)
+            {
+                log_e("Could not unlock audio record mutex");
+            }
+        }
+
         ret = pthread_mutex_lock(arg->av_record_mutex);
         if (ret != 0)
         {
@@ -451,14 +479,16 @@ static void *audio_thread(void *a)
 
 static int create_audio_thread(char *audio_device_name,
                                RecorderContext *recorder_context,
+                               RecorderContext *audio_recorder_context,
                                AnalyzerContext *analyzer_context,
                                AnalyzerContext *loudness_log_analyzer_context,
                                AnalyzerContext *av_record_analyzer_context,
-                               int *loudness_log_flag, int *av_record_flag,
-                               int *program_end_flag,
+                               int *loudness_log_flag, int *audio_record_flag,
+                               int *av_record_flag, int *program_end_flag,
                                pthread_mutex_t *recorder_mutex,
                                pthread_mutex_t *analyzer_mutex,
                                pthread_mutex_t *loudness_log_mutex,
+                               pthread_mutex_t *audio_record_mutex,
                                pthread_mutex_t *av_record_mutex,
                                pthread_t *thread)
 {
@@ -475,15 +505,18 @@ static int create_audio_thread(char *audio_device_name,
 
     arg->audio_device_name = audio_device_name;
     arg->recorder_context = recorder_context;
+    arg->audio_recorder_context = audio_recorder_context;
     arg->analyzer_context = analyzer_context;
     arg->loudness_log_analyzer_context = loudness_log_analyzer_context;
     arg->av_record_analyzer_context = av_record_analyzer_context;
     arg->loudness_log_flag = loudness_log_flag;
+    arg->audio_record_flag = audio_record_flag;
     arg->av_record_flag = av_record_flag;
     arg->program_end_flag = program_end_flag;
     arg->recorder_mutex = recorder_mutex;
     arg->analyzer_mutex = analyzer_mutex;
     arg->loudness_log_mutex = loudness_log_mutex;
+    arg->audio_record_mutex = audio_record_mutex;
     arg->av_record_mutex = av_record_mutex;
 
     ret = pthread_create(thread, NULL, audio_thread, (void *)arg);
@@ -543,7 +576,8 @@ int main(int argc, char **argv)
     }
 
     RecorderContext recorder_context;
-    ret = recorder_init(av_fifo_name, VIDEO_WIDTH, VIDEO_HEIGHT,
+    ret = recorder_init(av_fifo_name, RECORDER_RECORD_TYPE_VIDEO_AUDIO,
+                        VIDEO_WIDTH, VIDEO_HEIGHT,
                         AV_PIX_FMT_YUYV422, AV_RECORD_VIDEO_WIDTH,
                         AV_RECORD_VIDEO_HEIGHT, AV_RECORD_VIDEO_FRAMERATE,
                         AV_RECORD_VIDEO_BITRATE, AV_RECORD_VIDEO_CODEC,
@@ -604,6 +638,10 @@ int main(int argc, char **argv)
     int av_stream_port_number = 0;
     int av_stream_flag = 0;
 
+    RecorderContext audio_recorder_context;
+    char audio_record_name[FILE_NAME_LENGTH];
+    int audio_record_flag = 0;
+
     FILE *av_record_fp;
     char av_record_name[FILE_NAME_LENGTH];
     int av_record_flag = 0;
@@ -625,6 +663,9 @@ int main(int argc, char **argv)
 
     pthread_mutex_t loudness_log_mutex;
     pthread_mutex_init(&loudness_log_mutex, &mutex_attr);
+
+    pthread_mutex_t audio_record_mutex;
+    pthread_mutex_init(&audio_record_mutex, &mutex_attr);
 
     pthread_mutex_t av_record_mutex;
     pthread_mutex_init(&av_record_mutex, &mutex_attr);
@@ -660,12 +701,13 @@ int main(int argc, char **argv)
 
     pthread_t audio_thread_t;
     ret = create_audio_thread(audio_device_name, &recorder_context,
-                              &analyzer_context,
+                              &audio_recorder_context, &analyzer_context,
                               &loudness_log_analyzer_context,
                               &av_record_analyzer_context, &loudness_log_flag,
-                              &av_record_flag, &program_end_flag,
-                              &record_mutex, &analyzer_mutex,
-                              &loudness_log_mutex, &av_record_mutex,
+                              &audio_record_flag, &av_record_flag,
+                              &program_end_flag, &record_mutex,
+                              &analyzer_mutex, &loudness_log_mutex,
+                              &audio_record_mutex, &av_record_mutex,
                               &audio_thread_t);
     if (ret != 0)
     {
@@ -867,6 +909,100 @@ int main(int argc, char **argv)
 
                     log_i("AV stream end (%s %d)", av_stream_ip_name,
                           av_stream_port_number);
+                    break;
+
+                case IPC_COMMAND_AUDIO_RECORD_START:
+                    if (audio_record_flag)
+                    {
+                        ret = pthread_mutex_lock(&audio_record_mutex);
+                        if (ret != 0)
+                        {
+                            log_e("Could not lock audio record mutex");
+                            break;
+                        }
+
+                        audio_record_flag = 0;
+
+                        recorder_uninit(&audio_recorder_context);
+
+                        log_i("Audio record end (%s)", audio_record_name);
+
+                        ret = pthread_mutex_unlock(&audio_record_mutex);
+                        if (ret != 0)
+                        {
+                            log_e("Could not unlock audio record mutex");
+                        }
+                    }
+
+                    if (strlen(ipc_message.arg) == 0)
+                    {
+                        log_i("Null audio record name");
+                        break;
+                    }
+
+                    strncpy(audio_record_name, ipc_message.arg,
+                            sizeof(audio_record_name));
+
+                    ret = pthread_mutex_lock(&audio_record_mutex);
+                    if (ret != 0)
+                    {
+                        log_e("Could not lock audio record mutex");
+                        break;
+                    }
+
+                    ret = recorder_init(audio_record_name,
+                                        RECORDER_RECORD_TYPE_AUDIO_ONLY,
+                                        0, 0, 0, 0, 0, (AVRational){0, 0}, 0, 0,
+                                        AUDIO_SAMPLERATE, AUDIO_CHANNELS,
+                                        AV_SAMPLE_FMT_S16,
+                                        AUDIO_RECORD_AUDIO_SAMPLERATE,
+                                        AUDIO_RECORD_AUDIO_CHANNELS,
+                                        AUDIO_RECORD_AUDIO_BITRATE,
+                                        AUDIO_RECORD_AUDIO_CODEC,
+                                        &audio_recorder_context);
+                    if (ret != 0)
+                    {
+                        log_e("Could not initialize audio recorder");
+                    }
+                    else
+                    {
+                        audio_record_flag = 1;
+
+                        log_i("Audio record start (%s)", audio_record_name);
+                    }
+
+                    ret = pthread_mutex_unlock(&audio_record_mutex);
+                    if (ret != 0)
+                    {
+                        log_e("Could not unlock audio record mutex");
+                    }
+                    break;
+
+                case IPC_COMMAND_AUDIO_RECORD_END:
+                    if (!audio_record_flag)
+                    {
+                        log_i("Already audio record ended");
+                        break;
+                    }
+
+                    ret = pthread_mutex_lock(&audio_record_mutex);
+                    if (ret != 0)
+                    {
+                        log_e("Could not lock audio record mutex");
+                        break;
+                    }
+
+                    audio_record_flag = 0;
+
+                    recorder_uninit(&audio_recorder_context);
+
+                    log_i("Audio record end (%s)", audio_record_name);
+
+                    ret = pthread_mutex_unlock(&audio_record_mutex);
+                    if (ret != 0)
+                    {
+                        log_e("Could not unlock audio record mutex");
+                    }
                     break;
 
                 case IPC_COMMAND_AV_RECORD_START:
